@@ -137,6 +137,22 @@ export async function upsertSpecialist(specialist: Specialist): Promise<Speciali
   return specialist;
 }
 
+export async function getSpecialistByUsername(username: string): Promise<Specialist | null> {
+  if (supabaseClient) {
+    try {
+      const { data, error } = await supabaseClient
+        .from('specialists')
+        .select('*')
+        .eq('username', username)
+        .limit(1);
+      if (!error && data && data.length > 0) return data[0] as Specialist;
+    } catch (e) {
+      console.warn('Supabase specialist-by-username error:', e);
+    }
+  }
+  return specialistsMem.find(s => s.username === username) || null;
+}
+
 export async function deleteSpecialist(id: string): Promise<boolean> {
   if (supabaseClient) {
     try {
