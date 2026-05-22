@@ -1,0 +1,6 @@
+{
+  "name": "Alves Estética",
+  "description": "Sistema de agendamento e gestão financeira para Salão de Estética Feminina multi-profissional.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
