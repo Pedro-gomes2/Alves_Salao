@@ -17,7 +17,14 @@ import {
   ChevronLeft, 
   ChevronRight, 
   Phone,
-  MessageSquare
+  MessageSquare,
+  Coffee,
+  Award,
+  Scissors,
+  Eye,
+  Users,
+  ShieldCheck,
+  Smile
 } from 'lucide-react';
 
 interface BookingFlowProps {
@@ -126,6 +133,25 @@ export default function BookingFlow({
       createdAt: new Date().toISOString()
     };
 
+    const waText = `Olá! Realizei um agendamento de procedimento estético:
+*Cliente:* ${userName}
+*WhatsApp:* ${userWhatsapp}
+*Procedimento(s):* ${selectedServices.map(s => s.name).join(', ')}
+*Profissional:* ${selectedSpecialist.name}
+*Data e Hora:* Dia ${selectedDate} de Maio de 2026, às ${selectedTime}
+*Valor Total:* R$ ${totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+*Duração total:* ${totalDuration} minutos`;
+
+    const waUrl = `https://wa.me/${salonWhatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(waText)}`;
+
+    const redirectToWhatsapp = () => {
+      try {
+        window.open(waUrl, '_blank');
+      } catch (err) {
+        console.error("Popup blocked or failed to open WhatsApp window", err);
+      }
+    };
+
     try {
       const response = await fetch('/api/bookings', {
         method: 'POST',
@@ -137,17 +163,20 @@ export default function BookingFlow({
         setFinalBooking(savedBooking);
         onBookingConfirmed(savedBooking);
         setStep(5);
+        redirectToWhatsapp();
       } else {
         // Fallback for network issues
         setFinalBooking(booking);
         onBookingConfirmed(booking);
         setStep(5);
+        redirectToWhatsapp();
       }
     } catch (err) {
       // Fallback
       setFinalBooking(booking);
       onBookingConfirmed(booking);
       setStep(5);
+      redirectToWhatsapp();
     }
   };
 
@@ -161,6 +190,8 @@ export default function BookingFlow({
       case 'Sun': return <Sun className="w-5 h-5" />;
       case 'Droplets': return <Droplets className="w-5 h-5" />;
       case 'Gem': return <Gem className="w-5 h-5" />;
+      case 'Scissors': return <Scissors className="w-5 h-5" />;
+      case 'Eye': return <Eye className="w-5 h-5" />;
       default: return <Sparkles className="w-5 h-5" />;
     }
   };
@@ -195,48 +226,240 @@ export default function BookingFlow({
         </div>
       )}
 
-      {/* STEP 1: Specialists List */}
+      {/* STEP 1: Specialists List / Full Landing Page */}
       {step === 1 && (
-        <section className="animate-fade-in max-w-4xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="font-display text-3xl md:text-5xl text-brand-primary mb-3">Nossas Especialistas</h2>
-            <p className="font-sans text-brand-tertiary max-w-xl mx-auto leading-relaxed">
-              Conheça a equipe dedicada a transformar sua beleza com técnicas avançadas e um toque de cuidado personalizado.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {specialists.filter(s => s.active).map(spec => (
-              <div 
-                key={spec.id} 
-                className="bg-[#faf9f8] rounded-2xl p-6 border border-brand-primary-light/40 shadow-sm flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-md"
-              >
-                <div className="w-28 h-28 rounded-full overflow-hidden mb-4 border-4 border-white shadow-sm">
-                  <img 
-                    src={spec.avatarUrl} 
-                    alt={spec.name} 
-                    className="w-full h-full object-cover" 
-                  />
-                </div>
-                <h3 className="font-display text-xl text-brand-dark mb-1 font-semibold">{spec.name}</h3>
-                <p className="font-sans text-xs text-brand-tertiary mb-3">{spec.role}</p>
-                
-                <div className="flex items-center gap-1 text-xs text-brand-secondary mb-5 font-semibold">
-                  <Star className="w-3.5 h-3.5 fill-current text-yellow-500" />
-                  <span>{spec.rating} • {spec.role.split(' ')[0]}</span>
-                </div>
-
-                <button 
-                  onClick={() => handleSelectSpecialist(spec)}
-                  className="mt-auto w-full py-2.5 px-4 rounded-full border border-brand-primary text-brand-primary text-xs font-bold hover:bg-brand-primary hover:text-white transition-all duration-300 active:scale-95"
+        <section className="animate-fade-in space-y-20 max-w-5xl mx-auto">
+          
+          {/* 1. HERO HOME SECTION */}
+          <div className="text-center bg-white border border-brand-primary-light/40 rounded-3xl p-8 md:p-16 shadow-sm relative overflow-hidden">
+            {/* Background elements */}
+            <div className="absolute top-0 right-0 w-64 h-64 bg-brand-primary-light/10 blur-3xl rounded-full -mr-16 -mt-16"></div>
+            <div className="absolute bottom-0 left-0 w-80 h-80 bg-brand-secondary-light/10 blur-3xl rounded-full -ml-24 -mb-24"></div>
+            
+            <div className="relative z-10 space-y-6">
+              <span className="font-sans text-[10px] font-extrabold uppercase tracking-widest text-brand-primary bg-brand-primary-light/30 px-3 py-1.5 rounded-full inline-block">
+                SANTUÁRIO DE BELEZA & BEM-ESTAR FEMININO
+              </span>
+              
+              <h1 className="font-display text-4xl md:text-6xl text-brand-dark leading-tight tracking-tight max-w-3xl mx-auto font-bold">
+                Seu Bem-Estar no <span className="italic text-brand-primary">Lugar Certo</span>
+              </h1>
+              
+              <p className="font-sans text-brand-tertiary text-sm md:text-base max-w-2xl mx-auto leading-relaxed">
+                Na <strong className="text-brand-primary font-bold">Alves Estética</strong>, o autocuidado é elevado a um portal de equilíbrio, delicadeza e carinho. Aliamos protocolos inovadores de alta tecnologia estética a um acolhimento acolhedor e seguro para realçar a sua essência e beleza natural.
+              </p>
+              
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+                <a 
+                  href="#especialistas"
+                  className="w-full sm:w-auto bg-brand-primary hover:bg-brand-primary-light hover:text-brand-primary text-white font-sans font-bold text-xs uppercase tracking-wider px-8 py-4 rounded-full shadow-lg transition-all active:scale-95 duration-300 text-center"
                 >
-                  Ver Agenda
-                </button>
+                  Agendar com Especialista
+                </a>
+                <a 
+                  href="#ambiente"
+                  className="w-full sm:w-auto bg-white border border-[#d6c2c4] hover:border-brand-primary text-brand-tertiary hover:text-brand-primary font-sans font-bold text-xs uppercase tracking-wider px-8 py-4 rounded-full transition-all duration-300 text-center"
+                >
+                  Conhecer o Ambiente
+                </a>
               </div>
-            ))}
+              
+              <div className="flex flex-wrap items-center justify-center gap-y-2.5 gap-x-6 text-[10px] uppercase font-bold text-brand-tertiary/80 tracking-widest pt-6 border-t border-brand-primary-light/15">
+                <span className="flex items-center gap-1.5"><CheckCircle className="w-3.5 h-3.5 text-brand-secondary" /> Suporte Exclusivo</span>
+                <span className="flex items-center gap-1.5"><CheckCircle className="w-3.5 h-3.5 text-brand-secondary" /> Especialistas Graduadas</span>
+                <span className="flex items-center gap-1.5"><CheckCircle className="w-3.5 h-3.5 text-brand-secondary" /> Espaço Climatizado & Seguro</span>
+              </div>
+            </div>
           </div>
 
-          {/* Hidden Admin Access Button to respect confidentiality */}
+          {/* 2. OUR AMBIENTE (Nosso Ambiente) */}
+          <div id="ambiente" className="space-y-16 scroll-mt-24">
+            
+            {/* SERVICES IN OUR BEAUTIFUL SPACE */}
+            <div className="space-y-10">
+              <div className="text-center max-w-xl mx-auto space-y-2">
+                <span className="font-sans text-xs font-bold text-brand-secondary tracking-widest uppercase mb-1 block">Nosso Lindo Espaço</span>
+                <h2 className="font-display text-3xl md:text-4.5xl text-brand-primary font-bold">Nossas Quatro Especialidades</h2>
+                <p className="font-sans text-xs text-brand-tertiary leading-relaxed">
+                  Explore os tratamentos premium que oferecemos com profissionais de ponta dedicadas a cuidar de cada detalhe da sua beleza.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {/* 1. Podologia */}
+                <div className="bg-white border border-brand-primary-light/25 hover:border-brand-primary/45 rounded-2xl p-6 shadow-xs hover:shadow-md transition-all duration-300 space-y-4">
+                  <div className="w-12 h-12 bg-brand-primary-light/20 rounded-xl flex items-center justify-center text-brand-primary">
+                    <Sparkles className="w-6 h-6" />
+                  </div>
+                  <h3 className="font-display text-lg text-brand-dark font-semibold">Podologia</h3>
+                  <p className="font-sans text-xs text-[#847375] leading-relaxed">
+                    Saúde, prevenção e bem-estar para seus pés. Protocolos técnicos avançados para tratar calosidades, unhas encravadas e spa terapêutico relaxante.
+                  </p>
+                </div>
+
+                {/* 2. Nails */}
+                <div className="bg-white border border-brand-primary-light/25 hover:border-brand-primary/45 rounded-2xl p-6 shadow-xs hover:shadow-md transition-all duration-300 space-y-4">
+                  <div className="w-12 h-12 bg-brand-secondary-light/30 rounded-xl flex items-center justify-center text-brand-secondary">
+                    <Gem className="w-6 h-6" />
+                  </div>
+                  <h3 className="font-display text-lg text-brand-dark font-semibold">Nails</h3>
+                  <p className="font-sans text-xs text-[#847375] leading-relaxed">
+                    Esmaltação de alta durabilidade, blindagem protetora e técnicas refinadas de alongamento em gel ou fibra de vidro com acabamento extremamente delicado e natural.
+                  </p>
+                </div>
+
+                {/* 3. Cabeleireira */}
+                <div className="bg-white border border-brand-primary-light/25 hover:border-brand-primary/45 rounded-2xl p-6 shadow-xs hover:shadow-md transition-all duration-300 space-y-4">
+                  <div className="w-12 h-12 bg-[#eeeeed] rounded-xl flex items-center justify-center text-brand-tertiary">
+                    <Scissors className="w-6 h-6 text-brand-secondary" />
+                  </div>
+                  <h3 className="font-display text-lg text-brand-dark font-semibold">Cabeleireira</h3>
+                  <p className="font-sans text-xs text-[#847375] leading-relaxed">
+                    Design de corte inovador, visagismo personalizado, hidratação de alta nutrição e mechas criativas que valorizam o balanço natural dos seus fios.
+                  </p>
+                </div>
+
+                {/* 4. Lash Design */}
+                <div className="bg-white border border-brand-primary-light/25 hover:border-brand-primary/45 rounded-2xl p-6 shadow-xs hover:shadow-md transition-all duration-300 space-y-4">
+                  <div className="w-12 h-12 bg-brand-primary-light/20 rounded-xl flex items-center justify-center text-brand-primary">
+                    <Eye className="w-6 h-6" />
+                  </div>
+                  <h3 className="font-display text-lg text-brand-dark font-semibold">Lash Design</h3>
+                  <p className="font-sans text-xs text-[#847375] leading-relaxed">
+                    Cílios volumosos e impecáveis com fitas brasileiras personalizadas ou lash lifting reconstrutor. Técnicas seguras de isolamento para preservar sua saúde ocular.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* THREE CORE PILLARS OF OUR BEAUTIFUL SPACE */}
+            <div className="bg-[#faf9f8] rounded-3xl p-8 md:p-12 border border-brand-primary-light/30 space-y-10">
+              <div className="text-center max-w-xl mx-auto space-y-2">
+                <span className="font-sans text-xs font-bold text-brand-primary tracking-widest uppercase">Essência Alves Estética</span>
+                <h3 className="font-display text-2xl md:text-3xl text-brand-dark font-bold">Por Que Escolher Nosso Espaço?</h3>
+                <p className="font-sans text-xs text-brand-tertiary leading-relaxed">
+                  Criamos uma atmosfera única para que sua experiência de beleza seja memorável, pautada no respeito e no amor.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                {/* Pillar 1: Ambiente familiar */}
+                <div className="space-y-3 bg-white p-6 rounded-2xl border border-brand-primary-light/10 shadow-xs">
+                  <div className="w-10 h-10 bg-brand-primary-light/20 rounded-xl flex items-center justify-center text-brand-primary">
+                    <Users className="w-5 h-5" />
+                  </div>
+                  <h4 className="font-display font-bold text-brand-dark text-lg">Ambiente familiar</h4>
+                  <p className="font-sans text-xs text-brand-tertiary leading-relaxed">
+                    Mais que um salão, somos um ponto de encontro afetuoso onde você é recebida de braços abertos. Um ambiente tranquilo, perfeito para viver bons momentos de bem-estar ao lado de quem quer bem.
+                  </p>
+                </div>
+
+                {/* Pillar 2: Limpo e Seguro */}
+                <div className="space-y-3 bg-white p-6 rounded-2xl border border-brand-primary-light/10 shadow-xs">
+                  <div className="w-10 h-10 bg-brand-secondary-light/30 rounded-xl flex items-center justify-center text-brand-secondary">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <h4 className="font-display font-bold text-brand-dark text-lg">Limpo e Seguro</h4>
+                  <p className="font-sans text-xs text-brand-tertiary leading-relaxed">
+                    Compromisso absoluto com a sua saúde. Nossos materiais metálicos passam por rigorosa autoclave hospitalar, descartáveis premium são estritamente individuais e mantemos desinfecção constante do espaço.
+                  </p>
+                </div>
+
+                {/* Pillar 3: Relaxar, se rejuvenescer e se sentir bela */}
+                <div className="space-y-3 bg-white p-6 rounded-2xl border border-brand-primary-light/10 shadow-xs">
+                  <div className="w-10 h-10 bg-rose-50 rounded-xl flex items-center justify-center text-rose-500">
+                    <Smile className="w-5 h-5" />
+                  </div>
+                  <h4 className="font-display font-bold text-brand-dark text-lg">Momento de Relaxar & Brilhar</h4>
+                  <p className="font-sans text-xs text-brand-tertiary leading-relaxed">
+                    Um verdadeiro momento para relaxar, se rejuvenescer e se sentir muito mais bela. Saboreie nossos chás perfumados e cafés finos e deixe que nossas especialistas cuidem da sua melhor versão.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          {/* 3. NOSSAS ESPECIALISTAS - IN THE MIDDLE OF IT! */}
+          <div id="especialistas" className="space-y-10 scroll-mt-24">
+            <div className="text-center max-w-xl mx-auto space-y-2">
+              <span className="font-sans text-xs font-bold text-brand-primary tracking-widest uppercase">Excelência em Atendimento</span>
+              <h2 className="font-display text-3xl md:text-4.5xl text-brand-dark font-bold">Conheça Nossas Especialistas</h2>
+              <p className="font-sans text-xs text-brand-tertiary leading-relaxed">
+                Nossa equipe é formada por profissionais renomadas com sólidos diplomas e capacitações práticas inovadoras para assegurar resultados estéticos impecáveis.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {specialists.filter(s => s.active).map(spec => (
+                <div 
+                  key={spec.id} 
+                  className="bg-white rounded-2xl p-6 border border-brand-primary-light/40 shadow-sm flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-md relative group overflow-hidden"
+                >
+                  <div className="absolute inset-x-0 bottom-0 h-1 bg-brand-primary transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></div>
+                  
+                  <div className="w-28 h-28 rounded-full overflow-hidden mb-4 border-4 border-[#faf9f8] shadow-sm relative z-10 transition-transform duration-500 group-hover:scale-105">
+                    <img 
+                      src={spec.avatarUrl} 
+                      alt={spec.name} 
+                      className="w-full h-full object-cover" 
+                    />
+                  </div>
+                  <h3 className="font-display text-xl text-brand-dark mb-1 font-semibold group-hover:text-brand-primary transition-colors">{spec.name}</h3>
+                  <p className="font-sans text-xs text-brand-tertiary mb-3 uppercase tracking-wider font-extrabold text-[9px]">{spec.role}</p>
+                  
+                  <div className="flex items-center gap-1 text-xs text-brand-secondary mb-5 font-semibold">
+                    <Star className="w-3.5 h-3.5 fill-current text-yellow-500" />
+                    <span>{spec.rating} • {spec.role.split(' ')[0]}</span>
+                  </div>
+
+                  <button 
+                    onClick={() => handleSelectSpecialist(spec)}
+                    className="mt-auto w-full py-2.5 px-4 rounded-full border border-brand-primary text-brand-primary text-xs font-bold hover:bg-brand-primary hover:text-white transition-all duration-300 active:scale-95 cursor-pointer shadow-xs"
+                  >
+                    Ver Agenda & Serviços
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 4. CLIENT TESTIMONIALS */}
+          <div className="bg-[#faf9f8]/45 border border-brand-primary-light/20 rounded-3xl p-8 md:p-12 space-y-8">
+            <div className="text-center space-y-1">
+              <span className="font-sans text-xs font-bold text-brand-secondary tracking-widest uppercase">Experiência Real</span>
+              <h3 className="font-display text-2xl text-brand-dark font-semibold">O Que Dizem Nossas Clientes</h3>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="bg-white p-6 rounded-2xl border border-brand-primary-light/10 relative shadow-sm">
+                <span className="text-brand-primary-light/40 opacity-50 text-5xl font-serif absolute top-2 left-3">“</span>
+                <p className="font-sans text-xs text-brand-tertiary italic leading-relaxed pt-2 relative z-10 pl-4">
+                  "O ambiente da Alves Estética é de tirar o fôlego. O aconchego, a tranquilidade e a extrema técnica de atendimento me conquistaram desde o primeiro minuto. A limpeza de pele sênior tirou todas as impurezas sem nenhuma dor nas minhas marcas!"
+                </p>
+                <div className="mt-4 border-t border-brand-primary-light/10 pt-3 flex items-center justify-between">
+                  <span className="font-sans text-[11px] font-bold text-brand-dark">Mariana S. de Oliveira</span>
+                  <div className="flex gap-0.5">
+                    {[1,2,3,4,5].map(i => <Star key={i} className="w-3 h-3 text-yellow-500 fill-current" />)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-2xl border border-brand-primary-light/10 relative shadow-sm">
+                <span className="text-brand-primary-light/40 opacity-50 text-5xl font-serif absolute top-2 left-3">“</span>
+                <p className="font-sans text-xs text-brand-tertiary italic leading-relaxed pt-2 relative z-10 pl-4">
+                  "Fazer cílios e manicure com as especialistas da Alves tornou-se meu presente quinzenal preferido. O atendimento é extremamente de alto padrão, o local cheira maravilhosamente bem e as louças de chá no final são um amor à parte."
+                </p>
+                <div className="mt-4 border-t border-brand-primary-light/10 pt-3 flex items-center justify-between">
+                  <span className="font-sans text-[11px] font-bold text-brand-dark">Letícia R. Mendes</span>
+                  <div className="flex gap-0.5">
+                    {[1,2,3,4,5].map(i => <Star key={i} className="w-3 h-3 text-yellow-500 fill-current" />)}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
         </section>
       )}
 

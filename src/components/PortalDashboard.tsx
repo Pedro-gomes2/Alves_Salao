@@ -25,6 +25,7 @@ import {
   Gem, 
   Printer,
   ChevronRight,
+  ChevronLeft,
   TrendingDown,
   Star,
   MessageSquare
@@ -59,6 +60,133 @@ export default function PortalDashboard({
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [showDbModal, setShowDbModal] = useState(false);
   const [copiedSql, setCopiedSql] = useState(false);
+  
+  // Agenda interactive views states
+  const [agendaView, setAgendaView] = useState<'diario' | 'semanal' | 'mensal'>('diario');
+  const [agendaDate, setAgendaDate] = useState<string>('2026-05-22');
+  const [selectedSpecialistId, setSelectedSpecialistId] = useState<string>('all');
+
+  const getDaysOfWeek = (centerDateStr: string): string[] => {
+    const parts = centerDateStr.split('-');
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    
+    const d = new Date(year, month, day);
+    const dayIndex = d.getDay(); // 0 is Sunday, 1 is Monday ... 
+    
+    const sunday = new Date(year, month, day - dayIndex);
+    
+    const days: string[] = [];
+    for (let i = 0; i < 7; i++) {
+      const nextDay = new Date(sunday.getFullYear(), sunday.getMonth(), sunday.getDate() + i);
+      const y = nextDay.getFullYear();
+      const m = String(nextDay.getMonth() + 1).padStart(2, '0');
+      const dd = String(nextDay.getDate()).padStart(2, '0');
+      days.push(`${y}-${m}-${dd}`);
+    }
+    return days;
+  };
+
+  const getDaysOfMonth = (centerDateStr: string) => {
+    const parts = centerDateStr.split('-');
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1; 
+    
+    const firstDay = new Date(year, month, 1);
+    const firstDayOfWeek = firstDay.getDay(); 
+    
+    const totalDays = new Date(year, month + 1, 0).getDate();
+    
+    const cells: { dateStr: string; dayNum: number; isCurrentMonth: boolean }[] = [];
+    
+    const prevMonthLastDate = new Date(year, month, 0).getDate();
+    for (let i = firstDayOfWeek - 1; i >= 0; i--) {
+      const prevDayNum = prevMonthLastDate - i;
+      const prevMonthDate = new Date(year, month - 1, prevDayNum);
+      const y = prevMonthDate.getFullYear();
+      const m = String(prevMonthDate.getMonth() + 1).padStart(2, '0');
+      const dd = String(prevMonthDate.getDate()).padStart(2, '0');
+      cells.push({
+        dateStr: `${y}-${m}-${dd}`,
+        dayNum: prevDayNum,
+        isCurrentMonth: false
+      });
+    }
+    
+    for (let i = 1; i <= totalDays; i++) {
+      const y = year;
+      const m = String(month + 1).padStart(2, '0');
+      const dd = String(i).padStart(2, '0');
+      cells.push({
+        dateStr: `${y}-${m}-${dd}`,
+        dayNum: i,
+        isCurrentMonth: true
+      });
+    }
+    
+    const remainingCells = 42 - cells.length;
+    for (let i = 1; i <= remainingCells; i++) {
+      const nextMonthDate = new Date(year, month + 1, i);
+      const y = nextMonthDate.getFullYear();
+      const m = String(nextMonthDate.getMonth() + 1).padStart(2, '0');
+      const dd = String(nextMonthDate.getDate()).padStart(2, '0');
+      cells.push({
+        dateStr: `${y}-${m}-${dd}`,
+        dayNum: i,
+        isCurrentMonth: false
+      });
+    }
+    
+    return cells;
+  };
+
+  const getFormattedDatePT = (dateStr: string) => {
+    try {
+      const parts = dateStr.split('-');
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const d = new Date(year, month, day);
+      
+      const weekDays = [
+        'Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira',
+        'Quinta-feira', 'Sexta-feira', 'Sábado'
+      ];
+      const months = [
+        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+      ];
+      
+      return `${weekDays[d.getDay()]}, ${day} de ${months[month]} de ${year}`;
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
+  const shiftDateByDays = (dateStr: string, daysNum: number) => {
+    const parts = dateStr.split('-');
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    const d = new Date(year, month, day + daysNum);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    setAgendaDate(`${y}-${m}-${dd}`);
+  };
+
+  const shiftDateByMonth = (dateStr: string, monthsNum: number) => {
+    const parts = dateStr.split('-');
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    const d = new Date(year, month + monthsNum, 1); // target first of month for month browsing
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(day).padStart(2, '0'); // try to keep original day
+    setAgendaDate(`${y}-${m}-01`); // fall to 1st to ensure we don't skip short months
+  };
   
   // Transaction states
   const [transType, setTransType] = useState<'entrada' | 'saida'>('saida');
@@ -111,7 +239,7 @@ export default function PortalDashboard({
   const netProfit = totalRevenue - totalExpenses;
 
   // Change booking status (Confirm / Reject / Cancel)
-  const handleUpdateBookingStatus = async (id: string, status: 'confirmado' | 'cancelado') => {
+  const handleUpdateBookingStatus = async (id: string, status: 'confirmado' | 'cancelado' | 'finalizado') => {
     try {
       const response = await fetch(`/api/bookings/${id}/status`, {
         method: 'PATCH',
@@ -120,11 +248,37 @@ export default function PortalDashboard({
       });
       if (response.ok) {
         onRefreshData();
-        showToast(`Agendamento ${status === 'confirmado' ? 'confirmado' : 'cancelado'} com sucesso!`);
+        let msgStr = `Agendamento atualizado para ${status}!`;
+        if (status === 'confirmado') msgStr = 'Agendamento confirmado com sucesso!';
+        if (status === 'cancelado') msgStr = 'Agendamento cancelado com sucesso!';
+        if (status === 'finalizado') msgStr = 'Atendimento finalizado e dados encaminhados para o setor financeiro!';
+        showToast(msgStr);
       }
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const handleConfirmAndSendWhatsapp = async (book: Booking) => {
+    await handleUpdateBookingStatus(book.id, 'confirmado');
+    
+    // Normalize and clean phone number for WhatsApp URL
+    const cleanPhone = book.userWhatsapp.replace(/\D/g, '');
+    let formattedPhone = cleanPhone;
+    if (cleanPhone.length > 0) {
+      if (!cleanPhone.startsWith('55') && cleanPhone.length >= 10 && cleanPhone.length <= 11) {
+        formattedPhone = '55' + cleanPhone;
+      }
+    }
+    
+    const formattedDate = book.date.split('-').reverse().join('/');
+    const textMsg = `Olá, ${book.userName}! Passando para confirmar seu agendamento de *${book.serviceNames.join(', ')}* na Alves Estética! 🌸\n\n*Profissional:* ${book.specialistName}\n*Data:* ${formattedDate}\n*Horários:* ${book.time} hs\n*Valor:* R$ ${book.totalPrice.toFixed(2)}\n\nEstamos ansiosas para te receber! Caso precise remarcar, fale conosco.`;
+    const waUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(textMsg)}`;
+    window.open(waUrl, '_blank');
+  };
+
+  const handleFinalizeBooking = async (id: string) => {
+    await handleUpdateBookingStatus(id, 'finalizado');
   };
 
   // Create financial operation
@@ -708,99 +862,581 @@ export default function PortalDashboard({
 
           {/* VIEW 2: AGENDA TIMELINE */}
           {activeTab === 'agenda' && (
-            <div className="space-y-8">
-              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+            <div className="space-y-8 animate-fade-in">
+              <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 border-b border-brand-primary-light/10 pb-6">
                 <div>
-                  <span className="font-sans text-[11px] font-semibold text-brand-primary tracking-widest uppercase">Controle Diário</span>
-                  <h2 className="font-display text-3xl text-brand-dark">Agenda de Hoje</h2>
-                  <p className="text-brand-tertiary text-sm">Quarta-feira, 25 de Outubro de 2026</p>
+                  <span className="font-sans text-[11px] font-semibold text-brand-primary tracking-widest uppercase">
+                    Controle de Atendimento • Visualização {agendaView === 'diario' ? 'Diária' : agendaView === 'semanal' ? 'Semanal' : 'Mensal'}
+                  </span>
+                  <div className="flex items-center gap-3 mt-1">
+                    <h2 className="font-display text-3xl font-bold text-brand-dark">Agenda Interativa</h2>
+                    <span className="px-3 py-1 text-[10px] bg-brand-primary-light/20 text-brand-primary rounded-full font-bold uppercase tracking-wide">Alves Estética</span>
+                  </div>
+                  <p className="text-brand-tertiary text-xs mt-1">Navegue pelas datas, confirme procedimentos via WhatsApp e envie faturamentos ao financeiro ao concluir.</p>
                 </div>
                 
-                <div className="flex items-center gap-3">
-                  <select 
-                    className="bg-white border border-[#d6c2c4]/40 rounded-full py-2 px-4 pr-10 text-xs font-bold text-brand-tertiary cursor-pointer focus:ring-1 focus:ring-brand-primary"
-                    defaultValue="all"
+                {/* Switcher & Date Navigation toolbar */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+                  {/* Selector Segment View */}
+                  <div className="inline-flex items-center bg-[#faf9f8] border border-[#d6c2c4]/45 rounded-xl p-1 shadow-sm">
+                    <button 
+                      onClick={() => setAgendaView('diario')}
+                      className={`px-4 py-2 rounded-lg font-sans text-xs font-bold transition-all cursor-pointer ${agendaView === 'diario' ? 'bg-brand-primary text-white shadow-sm' : 'text-[#847375] hover:bg-brand-primary-light/10'}`}
+                    >
+                      Diário
+                    </button>
+                    <button 
+                      onClick={() => setAgendaView('semanal')}
+                      className={`px-4 py-2 rounded-lg font-sans text-xs font-bold transition-all cursor-pointer ${agendaView === 'semanal' ? 'bg-brand-primary text-white shadow-sm' : 'text-[#847375] hover:bg-brand-primary-light/10'}`}
+                    >
+                      Semanal
+                    </button>
+                    <button 
+                      onClick={() => setAgendaView('mensal')}
+                      className={`px-4 py-2 rounded-lg font-sans text-xs font-bold transition-all cursor-pointer ${agendaView === 'mensal' ? 'bg-brand-primary text-white shadow-sm' : 'text-[#847375] hover:bg-brand-primary-light/10'}`}
+                    >
+                      Mensal
+                    </button>
+                  </div>
+
+                  {/* Specialist Filter */}
+                  <div className="relative">
+                    <select 
+                      value={selectedSpecialistId}
+                      onChange={(e) => setSelectedSpecialistId(e.target.value)}
+                      className="bg-white border border-[#d6c2c4]/40 rounded-xl py-2.5 pl-4 pr-10 text-xs font-bold text-brand-tertiary cursor-pointer focus:ring-1 focus:ring-brand-primary focus:outline-none shadow-sm"
+                    >
+                      <option value="all">Filtro: Todos Profissionais</option>
+                      {specialists.map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* DATE NAVIGATION PANEL */}
+              <div className="bg-[#faf9f8] border border-brand-primary-light/30 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => {
+                      if (agendaView === 'diario') shiftDateByDays(agendaDate, -1);
+                      else if (agendaView === 'semanal') shiftDateByDays(agendaDate, -7);
+                      else shiftDateByMonth(agendaDate, -1);
+                    }}
+                    className="w-10 h-10 rounded-full border border-[#d6c2c4]/40 hover:bg-white text-brand-primary flex items-center justify-center cursor-pointer transition-colors hover:shadow-sm animate-pulse-slow"
                   >
-                    <option value="all">Todos os Profissionais</option>
-                    {specialists.map(s => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+
+                  <div className="text-center sm:text-left px-2">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#847375] block">Data Selecionada</span>
+                    <span className="font-sans font-bold text-sm text-brand-dark">
+                      {agendaView === 'diario' && getFormattedDatePT(agendaDate)}
+                      {agendaView === 'semanal' && `Semana de ${getFormattedDatePT(getDaysOfWeek(agendaDate)[0]).split(',')[1]} até ${getFormattedDatePT(getDaysOfWeek(agendaDate)[6]).split(',')[1]}`}
+                      {agendaView === 'mensal' && (() => {
+                        const mParts = agendaDate.split('-');
+                        const mMonths = [
+                          'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                          'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+                        ];
+                        return `${mMonths[parseInt(mParts[1], 10) - 1]} de ${mParts[0]}`;
+                      })()}
+                    </span>
+                  </div>
+
+                  <button 
+                    onClick={() => {
+                      if (agendaView === 'diario') shiftDateByDays(agendaDate, 1);
+                      else if (agendaView === 'semanal') shiftDateByDays(agendaDate, 7);
+                      else shiftDateByMonth(agendaDate, 1);
+                    }}
+                    className="w-10 h-10 rounded-full border border-[#d6c2c4]/40 hover:bg-white text-brand-primary flex items-center justify-center cursor-pointer transition-colors hover:shadow-sm"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  {/* Today shortcut button */}
+                  <button 
+                    onClick={() => setAgendaDate('2026-05-22')}
+                    className="flex-1 sm:flex-none bg-white border border-brand-primary text-brand-primary hover:bg-brand-primary hover:text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all uppercase tracking-wide cursor-pointer text-center"
+                  >
+                    Voltar para Hoje
+                  </button>
                 </div>
               </div>
 
-              {/* Hours / Schedule grid */}
-              <div className="bg-white border border-brand-primary-light/35 rounded-2xl p-6 shadow-sm">
-                <div className="space-y-6">
-                  {['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00'].map((hour, index) => {
-                    // Match bookings falling near this hour
-                    const hourBookings = bookings.filter(b => b.time.startsWith(hour.slice(0, 2)));
-                    return (
-                      <div key={hour} className="flex gap-4 items-start pb-4 border-b border-brand-primary-light/10 last:border-0 last:pb-0">
-                        {/* Hour display */}
-                        <div className="w-12 text-right">
-                          <span className="text-xs font-bold text-brand-tertiary/65 font-mono">{hour}</span>
-                        </div>
+              {/* VIEW DYNAMIC CONTENT CONDITIONAL EXECUTIONS */}
 
-                        {/* Booking card row */}
-                        <div className="flex-1 space-y-3">
-                          {hourBookings.length === 0 ? (
-                            <div className="py-2 flex items-center text-brand-tertiary/35">
-                              <PlusCircle className="w-4 h-4 text-brand-tertiary/20 mr-2" />
-                              <span className="text-xs italic font-semibold">Livre para consultas</span>
-                            </div>
-                          ) : (
-                            hourBookings.map(book => (
-                              <div 
-                                key={book.id}
-                                className={`flex flex-col sm:flex-row justify-between p-4 rounded-xl border ${
-                                  book.status === 'pendente' 
-                                    ? 'border-dashed border-brand-primary bg-brand-primary-light/5' 
-                                    : 'border-brand-primary-light/30 bg-[#faf9f8]'
-                                } shadow-sm hover:shadow transition-shadow`}
-                              >
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-sans font-bold text-sm text-brand-dark">{book.userName}</span>
-                                    <span className={`px-2 py-0.5 text-[8px] font-bold rounded uppercase ${
-                                      book.status === 'confirmado' ? 'bg-[#f0deb0] text-[#6a5d39]' : 'bg-[#efdfd9] text-[#645a55]'
-                                    }`}>
-                                      {book.status}
-                                    </span>
-                                  </div>
-                                  <p className="text-xs text-brand-tertiary mt-1">
-                                    {book.serviceNames.join(', ')} • <span className="font-bold text-brand-secondary">{book.specialistName}</span>
-                                  </p>
-                                  <p className="text-[10px] text-brand-tertiary/60 font-mono mt-0.5">WhatsApp: {book.userWhatsapp}</p>
-                                </div>
+              {/* 1. DIÁRIO VIEW */}
+              {agendaView === 'diario' && (
+                <div className="bg-white border border-brand-primary-light/35 rounded-2xl p-6 shadow-sm space-y-4">
+                  <div className="border-b border-brand-primary-light/10 pb-4">
+                    <h3 className="font-display font-semibold text-lg text-brand-dark">Grade de Horários para {agendaDate.split('-').reverse().join('/')}</h3>
+                    <p className="text-brand-tertiary text-xs">Visualize e gerencie procedimentos por hora marcada</p>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    {['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00'].map((hour) => {
+                      // Filter bookings on agendaDate & matching hour prefix
+                      let hourBookings = bookings.filter(b => b.date === agendaDate && b.time.startsWith(hour.slice(0, 2)));
+                      if (selectedSpecialistId !== 'all') {
+                        hourBookings = hourBookings.filter(b => b.specialistId === selectedSpecialistId);
+                      }
 
-                                <div className="flex items-center gap-2 mt-3 sm:mt-0">
-                                  {book.status === 'pendente' && (
-                                    <>
-                                      <button 
-                                        onClick={() => handleUpdateBookingStatus(book.id, 'confirmado')}
-                                        className="p-1 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full text-xs font-bold flex items-center gap-1 transition-transform active:scale-95"
-                                      >
-                                        <Check className="w-3 h-3" /> Liberar
-                                      </button>
-                                      <button 
-                                        onClick={() => handleUpdateBookingStatus(book.id, 'cancelado')}
-                                        className="p-1 px-3 bg-red-50 text-red-700 hover:bg-red-100 rounded-full text-xs font-bold flex items-center gap-1 transition-transform active:scale-95"
-                                      >
-                                        <X className="w-3 h-3" /> Recusar
-                                      </button>
-                                    </>
-                                  )}
-                                </div>
+                      return (
+                        <div key={hour} className="flex flex-col md:flex-row gap-4 items-start pb-4 border-b border-brand-primary-light/10 last:border-0 last:pb-0 pt-2 selection:bg-brand-primary-light/30">
+                          {/* Hour tag */}
+                          <div className="w-16 md:text-right pt-1 flex items-center gap-1.5 md:justify-end">
+                            <span className="w-2 h-2 rounded-full bg-[#d6c2c4]" />
+                            <span className="text-xs font-bold text-brand-tertiary font-mono">{hour} hs</span>
+                          </div>
+
+                          {/* Detail of booking */}
+                          <div className="flex-1 w-full space-y-3">
+                            {hourBookings.length === 0 ? (
+                              <div className="py-2.5 px-4 bg-brand-primary-light/5 border border-dashed border-brand-primary-light/20 rounded-xl flex items-center text-brand-tertiary/50">
+                                <PlusCircle className="w-3.5 h-3.5 mr-2 text-brand-tertiary/30" />
+                                <span className="text-xs italic font-semibold">Horário livre para atendimento</span>
                               </div>
-                            ))
-                          )}
+                            ) : (
+                              hourBookings.map(book => (
+                                <div 
+                                  key={book.id}
+                                  className={`flex flex-col lg:flex-row justify-between p-5 rounded-2xl border transition-all ${
+                                    book.status === 'pendente' 
+                                      ? 'border-dashed border-brand-primary bg-brand-primary-light/5' 
+                                      : book.status === 'confirmado'
+                                        ? 'border-brand-primary-light/25 bg-[#faf9f8]'
+                                        : book.status === 'finalizado'
+                                          ? 'border-emerald-300/40 bg-emerald-50/20'
+                                          : 'border-[#d6c2c4]/20 bg-[#fbfbfb] opacity-60'
+                                  } shadow-sm hover:shadow-md`}
+                                >
+                                  {/* Info side */}
+                                  <div className="space-y-1">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <span className="font-sans font-black text-[#5c4a4c] text-base">{book.userName}</span>
+                                      
+                                      {/* Status labels */}
+                                      <span className={`px-2 py-0.5 text-[9px] font-bold rounded uppercase tracking-wider ${
+                                        book.status === 'confirmado' ? 'bg-[#f0deb0] text-[#6a5d39]' :
+                                        book.status === 'finalizado' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                                        book.status === 'pendente' ? 'bg-[#efdfd9] text-[#645a55]' :
+                                        'bg-red-50 text-red-700'
+                                      }`}>
+                                        {book.status === 'pendente' ? 'Pendente' : 
+                                         book.status === 'confirmado' ? 'Confirmado' : 
+                                         book.status === 'finalizado' ? 'Finalizado' : 'Cancelado'}
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-brand-tertiary font-medium">
+                                      Procedimento: <span className="text-brand-dark font-semibold">{book.serviceNames.join(', ')}</span> • Colaboradora: <span className="font-bold text-brand-secondary">{book.specialistName}</span>
+                                    </p>
+                                    <div className="flex gap-4 text-[10px] text-brand-tertiary mt-1.5 font-semibold">
+                                      <span>Preço: <strong className="text-brand-dark font-bold text-xs">R$ {book.totalPrice.toFixed(2)}</strong></span>
+                                      <span>Duração: <strong className="text-brand-dark font-bold">{book.totalDuration} min</strong></span>
+                                      <span>• Tel: {book.userWhatsapp}</span>
+                                    </div>
+                                  </div>
+
+                                  {/* Buttons action list */}
+                                  <div className="flex flex-wrap items-center gap-2 mt-4 lg:mt-0">
+                                    {book.status === 'pendente' && (
+                                      <>
+                                        <button 
+                                          onClick={() => handleConfirmAndSendWhatsapp(book)}
+                                          className="p-2 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full text-xs font-bold flex items-center gap-1.5 transition-transform active:scale-95 cursor-pointer shadow-sm hover:shadow"
+                                          title="Confirmar Atendimento e enviar WhatsApp"
+                                        >
+                                          <Check className="w-3.5 h-3.5" /> Confirmar Atendimento (WhatsApp)
+                                        </button>
+                                        <button 
+                                          onClick={() => handleUpdateBookingStatus(book.id, 'cancelado')}
+                                          className="p-2 px-3 border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 rounded-full text-xs font-bold flex items-center gap-1 transition-transform active:scale-95 cursor-pointer"
+                                        >
+                                          <X className="w-3.5 h-3.5" /> Recusar
+                                        </button>
+                                      </>
+                                    )}
+
+                                    {book.status === 'confirmado' && (
+                                      <>
+                                        <button 
+                                          onClick={() => handleFinalizeBooking(book.id)}
+                                          className="p-2 px-4 bg-purple-700 hover:bg-purple-800 text-white rounded-full text-xs font-bold flex items-center gap-1.5 transition-transform active:scale-95 cursor-pointer shadow-md hover:shadow-lg"
+                                          title="Finalizar atendimento e enviar dados para o financeiro"
+                                        >
+                                          <DollarSign className="w-3.5 h-3.5" /> Finalizar Atendimento (Finanças)
+                                        </button>
+                                        <button 
+                                          onClick={() => handleUpdateBookingStatus(book.id, 'cancelado')}
+                                          className="p-2 px-3 text-brand-tertiary hover:text-red-600 rounded-full text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                                        >
+                                          <X className="w-3.5 h-3.5" /> Cancelar
+                                        </button>
+                                      </>
+                                    )}
+
+                                    {book.status === 'finalizado' && (
+                                      <span className="inline-flex items-center gap-1.5 text-xs text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full shadow-sm animate-fade-in">
+                                        <Check className="w-3.5 h-3.5 stroke-[3px]" /> Encaminhado ao Financeiro (R$ {book.totalPrice.toFixed(2)})
+                                      </span>
+                                    )}
+
+                                    {book.status === 'cancelado' && (
+                                      <span className="text-xs text-red-700 font-bold bg-red-50 border border-red-200 px-3 py-1.5 rounded-full">
+                                        Cancelado
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* 2. SEMANAL VIEW */}
+              {agendaView === 'semanal' && (
+                <div className="space-y-6">
+                  <div className="bg-[#faf9f8] p-4 rounded-xl border border-[#d6c2c4]/20">
+                    <p className="text-xs text-brand-tertiary italic font-medium">Visualizando atendimentos para a semana selecionada. Clique em qualquer agendamento de um dia para focar nela ou atualizar o status.</p>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
+                    {getDaysOfWeek(agendaDate).map((dayStr) => {
+                      // Filter bookings on dayStr
+                      let dayBookings = bookings.filter(b => b.date === dayStr);
+                      if (selectedSpecialistId !== 'all') {
+                        dayBookings = dayBookings.filter(b => b.specialistId === selectedSpecialistId);
+                      }
+                      
+                      // Sort bookings by hour chronologically
+                      dayBookings.sort((a, b) => a.time.localeCompare(b.time));
+
+                      const isSelectedDay = dayStr === agendaDate;
+                      const parts = dayStr.split('-');
+                      const dayLabel = parts[2];
+                      const monthLabel = parts[1];
+
+                      // Parse day name (Sunday, Monday, etc.)
+                      const dParts = dayStr.split('-');
+                      const tempDate = new Date(parseInt(dParts[0], 10), parseInt(dParts[1], 10) - 1, parseInt(dParts[2], 10));
+                      const weDaysAbbr = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+                      const dayNameAbbr = weDaysAbbr[tempDate.getDay()];
+
+                      return (
+                        <div 
+                          key={dayStr}
+                          onClick={() => setAgendaDate(dayStr)}
+                          className={`bg-white rounded-2xl border p-4 flex flex-col h-[400px] overflow-y-auto cursor-pointer transition-all ${
+                            isSelectedDay 
+                              ? 'border-brand-primary bg-[#faf9f8]/60 ring-2 ring-brand-primary-light/30 shadow-md' 
+                              : 'border-brand-primary-light/30 hover:shadow shadow-sm'
+                          }`}
+                        >
+                          {/* Day header */}
+                          <div className={`text-center pb-3 mb-3 border-b border-brand-primary-light/10 ${isSelectedDay ? 'text-brand-primary' : 'text-brand-dark'}`}>
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-[#847375] block">
+                              {dayNameAbbr}
+                            </span>
+                            <span className="text-xl font-bold font-sans">
+                              {dayLabel}/{monthLabel}
+                            </span>
+                          </div>
+
+                          {/* Day bookings list */}
+                          <div className="flex-1 space-y-3">
+                            {dayBookings.length === 0 ? (
+                              <div className="h-full flex flex-col items-center justify-center text-center py-8">
+                                <span className="text-[10px] font-bold text-brand-tertiary/40 uppercase italic">Livre</span>
+                              </div>
+                            ) : (
+                              dayBookings.map((book) => (
+                                <div 
+                                  key={book.id}
+                                  className={`p-2.5 rounded-xl border text-left text-xs transition-shadow relative hover:shadow ${
+                                    book.status === 'pendente' 
+                                      ? 'border-[#d6c2c4] bg-brand-primary-light/5' 
+                                      : book.status === 'confirmado'
+                                        ? 'border-brand-primary-light/40 bg-[#faf9f8]'
+                                        : book.status === 'finalizado'
+                                          ? 'border-emerald-300 bg-emerald-50/10'
+                                          : 'border-red-100 bg-[#fbfbfb] opacity-60'
+                                  }`}
+                                  onClick={(e) => {
+                                    // Prevent selecting day state when clicking buttons
+                                    e.stopPropagation();
+                                    setAgendaDate(dayStr);
+                                  }}
+                                >
+                                  {/* Title & mark */}
+                                  <div className="flex justify-between items-start gap-1">
+                                    <span className="font-mono font-bold text-brand-primary text-[10px] bg-brand-primary-light/15 px-1.5 py-0.5 rounded">
+                                      {book.time}
+                                    </span>
+                                    {/* Small indicator */}
+                                    <span className={`w-2 h-2 rounded-full ${
+                                      book.status === 'confirmado' ? 'bg-[#f0deb0]' :
+                                      book.status === 'finalizado' ? 'bg-emerald-600' :
+                                      book.status === 'pendente' ? 'bg-[#d6c2c4]' : 'bg-red-400'
+                                    }`} />
+                                  </div>
+
+                                  <p className="font-sans font-bold text-brand-dark mt-1 line-clamp-1 truncate">{book.userName}</p>
+                                  <p className="text-[10px] text-brand-tertiary font-medium line-clamp-1 truncate">{book.serviceNames.join(', ')}</p>
+                                  <p className="text-[9px] text-brand-secondary italic mt-0.5">{book.specialistName}</p>
+
+                                  {/* Quick interactive controls for minicard */}
+                                  <div className="mt-2 pt-2 border-t border-brand-primary-light/10 flex items-center justify-end gap-1.5">
+                                    {book.status === 'pendente' && (
+                                      <>
+                                        <button 
+                                          onClick={() => handleConfirmAndSendWhatsapp(book)}
+                                          className="p-1 px-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-[9px] flex items-center gap-0.5 cursor-pointer"
+                                          title="Confirmar"
+                                        >
+                                          <Check className="w-2.5 h-2.5" /> Confirmar
+                                        </button>
+                                        <button 
+                                          onClick={() => handleUpdateBookingStatus(book.id, 'cancelado')}
+                                          className="p-1 bg-red-100 text-red-700 hover:bg-red-700 hover:text-white rounded font-bold text-[9px] cursor-pointer"
+                                          title="Recusar"
+                                        >
+                                          <X className="w-2.5 h-2.5" />
+                                        </button>
+                                      </>
+                                    )}
+
+                                    {book.status === 'confirmado' && (
+                                      <button 
+                                        onClick={() => handleFinalizeBooking(book.id)}
+                                        className="p-1 px-1.5 bg-purple-700 hover:bg-purple-800 text-white rounded font-bold text-[9px] flex items-center gap-0.5 cursor-pointer animate-pulse-slow"
+                                        title="Finalizar (Enviar p/ Financeiro)"
+                                      >
+                                        <DollarSign className="w-2.5 h-2.5" /> Finalizar
+                                      </button>
+                                    )}
+
+                                    {book.status === 'finalizado' && (
+                                      <span className="text-[8px] text-emerald-800 bg-emerald-100 px-1 py-0.5 rounded font-bold uppercase">
+                                        Atendido
+                                      </span>
+                                    )}
+
+                                    {book.status === 'cancelado' && (
+                                      <span className="text-[8px] text-red-800 bg-red-50 px-1 py-0.5 rounded font-bold uppercase">
+                                        Canc
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* 3. MENSAL VIEW */}
+              {agendaView === 'mensal' && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  {/* Calendar monthly card */}
+                  <div className="lg:col-span-2 bg-white border border-brand-primary-light/35 rounded-2xl p-6 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between pb-2 border-b border-brand-primary-light/10">
+                      <h3 className="font-display font-semibold text-lg text-brand-dark">Calendário Mensal</h3>
+                      <p className="text-brand-tertiary text-xs">Selecione uma data para inspecionar os atendimentos</p>
+                    </div>
+
+                    {/* Weekdays names labels */}
+                    <div className="grid grid-cols-7 gap-1 text-center font-sans text-[11px] font-bold uppercase tracking-widest text-[#847375] pb-2">
+                      <div>D</div>
+                      <div>S</div>
+                      <div>T</div>
+                      <div>Q</div>
+                      <div>Q</div>
+                      <div>S</div>
+                      <div>S</div>
+                    </div>
+
+                    {/* Days grid slots */}
+                    <div className="grid grid-cols-7 gap-2">
+                      {getDaysOfMonth(agendaDate).map((cell, index) => {
+                        const cellDateStr = cell.dateStr;
+                        const isSelectedDate = cellDateStr === agendaDate;
+                        
+                        // Bookings count on this cell date
+                        let cellBookings = bookings.filter(b => b.date === cellDateStr);
+                        if (selectedSpecialistId !== 'all') {
+                          cellBookings = cellBookings.filter(b => b.specialistId === selectedSpecialistId);
+                        }
+
+                        // Count by color status
+                        const hasPending = cellBookings.some(b => b.status === 'pendente');
+                        const hasConfirmed = cellBookings.some(b => b.status === 'confirmado');
+                        const hasFinalized = cellBookings.some(b => b.status === 'finalizado');
+                        const hasCanceled = cellBookings.some(b => b.status === 'cancelado');
+
+                        return (
+                          <div 
+                            key={`${cellDateStr}-${index}`}
+                            onClick={() => setAgendaDate(cellDateStr)}
+                            className={`min-h-[85px] border rounded-xl p-2 cursor-pointer flex flex-col justify-between transition-all select-none ${
+                              cell.isCurrentMonth ? 'bg-white' : 'bg-gray-50/40 text-gray-400 opacity-40 hover:opacity-75'
+                            } ${
+                              isSelectedDate 
+                                ? 'border-brand-primary ring-2 ring-brand-primary-light/35 bg-[#faf9f8] shadow-sm' 
+                                : 'border-brand-primary-light/10 hover:border-brand-primary/50'
+                            }`}
+                          >
+                            <span className={`text-xs font-bold leading-none ${isSelectedDate ? 'text-brand-primary font-black' : 'text-[#5c4a4c]'}`}>
+                              {cell.dayNum}
+                            </span>
+
+                            {/* Indicators of bookings inside slot */}
+                            <div className="space-y-1">
+                              {cellBookings.length > 0 && (
+                                <>
+                                  <div className="flex flex-wrap gap-1 leading-none">
+                                    {cellBookings.slice(0, 3).map((b) => (
+                                      <span 
+                                        key={b.id}
+                                        className={`w-1.5 h-1.5 rounded-full inline-block ${
+                                          b.status === 'confirmado' ? 'bg-[#f0deb0]' :
+                                          b.status === 'finalizado' ? 'bg-emerald-600' :
+                                          b.status === 'pendente' ? 'bg-[#d6c2c4]' : 'bg-red-400'
+                                        }`}
+                                        title={`${b.userName} - ${b.time}`}
+                                      />
+                                    ))}
+                                    {cellBookings.length > 3 && (
+                                      <span className="text-[7px] text-brand-primary font-bold">+{cellBookings.length - 3}</span>
+                                    )}
+                                  </div>
+                                  <span className="text-[8px] font-sans font-black text-brand-tertiary block leading-none">
+                                    {cellBookings.length} {cellBookings.length === 1 ? 'atend.' : 'atends.'}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Sidebar listing selected day details */}
+                  <div className="bg-white border border-brand-primary-light/35 rounded-2xl p-6 shadow-sm flex flex-col h-[500px]">
+                    <div className="border-b border-brand-primary-light/10 pb-3 mb-4 text-left">
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-[#847375]">Inspecionar Dia</span>
+                      <h4 className="font-display font-semibold text-base text-brand-dark leading-snug">
+                        {agendaDate.split('-').reverse().join('/')}
+                      </h4>
+                      <p className="text-[11px] text-brand-tertiary mt-0.5">{getFormattedDatePT(agendaDate).split(',')[0]}</p>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto space-y-4">
+                      {(() => {
+                        let selectedDayBookings = bookings.filter(b => b.date === agendaDate);
+                        if (selectedSpecialistId !== 'all') {
+                          selectedDayBookings = selectedDayBookings.filter(b => b.specialistId === selectedSpecialistId);
+                        }
+
+                        if (selectedDayBookings.length === 0) {
+                          return (
+                            <div className="h-full flex flex-col items-center justify-center text-center text-brand-tertiary/60 py-10">
+                              <Calendar className="w-8 h-8 text-[#d6c2c4] mb-2 stroke-[1.5]" />
+                              <p className="text-xs font-semibold italic">Nenhum atendimento agendado para este dia.</p>
+                            </div>
+                          );
+                        }
+
+                        return selectedDayBookings.map((book) => (
+                          <div 
+                            key={book.id}
+                            className={`p-4 rounded-xl border text-left space-y-3 ${
+                              book.status === 'pendente' 
+                                ? 'border-[#d6c2c4] bg-[#faf9f8]' 
+                                : book.status === 'confirmado'
+                                  ? 'border-brand-primary-light/40 bg-brand-primary-light/5'
+                                  : book.status === 'finalizado'
+                                    ? 'border-emerald-300 bg-emerald-50/10'
+                                    : 'border-red-100 bg-[#fbfbfb] opacity-60'
+                            }`}
+                          >
+                            <div className="flex justify-between items-center gap-2">
+                              <span className="font-mono font-bold text-xs text-brand-primary bg-white px-2 py-0.5 border border-[#d6c2c4]/40 rounded shadow-xs">
+                                {book.time} hs
+                              </span>
+                              <span className={`px-1.5 py-0.5 text-[8px] font-extrabold rounded uppercase ${
+                                book.status === 'confirmado' ? 'bg-[#f0deb0] text-[#6a5d39]' :
+                                book.status === 'finalizado' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                                book.status === 'pendente' ? 'bg-[#efdfd9] text-[#645a55]' :
+                                'bg-red-100 text-red-800'
+                              }`}>
+                                {book.status}
+                              </span>
+                            </div>
+
+                            <p className="font-sans font-bold text-brand-dark text-xs m-0">{book.userName}</p>
+                            <p className="text-[10px] text-brand-tertiary font-medium m-0 line-clamp-2 leading-tight">
+                              {book.serviceNames.join(', ')}
+                            </p>
+                            <span className="text-[10px] text-brand-secondary font-semibold block">Profissional: {book.specialistName}</span>
+
+                            <div className="pt-2 border-t border-brand-primary-light/10 flex flex-wrap gap-2 justify-end">
+                              {book.status === 'pendente' && (
+                                <>
+                                  <button 
+                                    onClick={() => handleConfirmAndSendWhatsapp(book)}
+                                    className="p-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                                    title="WhatsApp & Confirmar"
+                                  >
+                                    <Check className="w-3.5 h-3.5" /> Confirmar (WhatsApp)
+                                  </button>
+                                  <button 
+                                    onClick={() => handleUpdateBookingStatus(book.id, 'cancelado')}
+                                    className="p-1.5 bg-red-100 text-red-700 rounded-lg text-[10px] cursor-pointer hover:bg-red-600 hover:text-white transition-colors"
+                                    title="Recusar"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
+                              )}
+
+                              {book.status === 'confirmado' && (
+                                <button 
+                                  onClick={() => handleFinalizeBooking(book.id)}
+                                  className="p-1.5 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer animate-pulse-slow"
+                                >
+                                  <DollarSign className="w-3.5 h-3.5" /> Finalizar Atendimento (Financeiro)
+                                </button>
+                              )}
+
+                              {book.status === 'finalizado' && (
+                                <span className="text-[9px] text-emerald-800 font-bold bg-emerald-50 px-2 py-1 rounded">
+                                  ✓ Enviado Financeiro
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              )}
+
             </div>
           )}
 

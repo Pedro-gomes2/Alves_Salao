@@ -30,7 +30,7 @@ export interface Booking {
   serviceNames: string[]; // denormalized
   date: string; // YYYY-MM-DD
   time: string; // HH:MM
-  status: 'confirmado' | 'pendente' | 'cancelado';
+  status: 'confirmado' | 'pendente' | 'cancelado' | 'finalizado';
   totalPrice: number;
   totalDuration: number;
   createdAt: string;

@@ -225,7 +225,6 @@ export default function App() {
       {/* Aesthetic Footer */}
       <footer className="w-full border-t border-brand-primary-light/15 py-8 text-center text-[11px] text-brand-tertiary font-sans opacity-70">
         <p>© 2026 ALVES ESTÉTICA - Santuário de Estética & Bem-estar. Todos os direitos reservados.</p>
-        <p className="mt-1">Unidade São Paulo • Multi-profissional e Gestão Financeira Protegida.</p>
       </footer>
 
     </div>

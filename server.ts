@@ -126,15 +126,15 @@ async function startServer() {
       const oldStatus = booking.status;
       const updated = await updateBookingStatus(id, status);
 
-      // If status changed from pending -> confirmed, we record an incoming transaction
-      if (oldStatus !== 'confirmado' && status === 'confirmado') {
+      // If status changed to finalized, we record an incoming transaction (send to financial sector)
+      if (oldStatus !== 'finalizado' && status === 'finalizado') {
         const trans: Transaction = {
           id: 'trans-' + Date.now(),
           type: 'entrada',
-          description: `Agendamento - ${booking.userName} (${booking.serviceNames.join(', ')})`,
+          description: `Atendimento Finalizado - ${booking.userName} (${booking.serviceNames.join(', ')})`,
           amount: booking.totalPrice,
           date: booking.date,
-          category: 'Serviços',
+          category: 'Estética',
           specialistId: booking.specialistId,
           specialistName: booking.specialistName,
         };

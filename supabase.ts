@@ -179,7 +179,7 @@ export async function insertBooking(booking: Booking): Promise<Booking> {
   return booking;
 }
 
-export async function updateBookingStatus(id: string, status: 'confirmado' | 'cancelado'): Promise<Booking | null> {
+export async function updateBookingStatus(id: string, status: 'confirmado' | 'cancelado' | 'finalizado'): Promise<Booking | null> {
   if (supabaseClient) {
     try {
       const { data, error } = await supabaseClient.from('bookings').update({ status }).eq('id', id).select().single();
