@@ -1886,7 +1886,7 @@ export default function PortalDashboard({
                   </div>
                   <div className="text-right">
                     <span className="font-sans text-[10px] font-bold text-brand-secondary uppercase tracking-widest">Demonstrativo de Caixa</span>
-                    <p className="text-xs text-brand-dark font-sans mt-1">Período: 01 Out - 31 Out, 2026</p>
+                    <p className="text-xs text-brand-dark font-sans mt-1">Período: {activeRange.start.split('-').reverse().join('/')} – {activeRange.end.split('-').reverse().join('/')}</p>
                   </div>
                 </div>
 
