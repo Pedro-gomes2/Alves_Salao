@@ -1834,6 +1834,48 @@ export default function PortalDashboard({
                 </button>
               </div>
 
+              <div className="no-print">
+                {/* Period filter — mesma estrutura da aba Financeiro */}
+                <div className="bg-white border border-brand-primary-light/25 rounded-2xl p-4 flex flex-col md:flex-row md:items-center gap-3">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-brand-tertiary">Período</label>
+                  <select
+                    value={periodKey}
+                    onChange={(e) => setPeriodKey(e.target.value as PeriodKey)}
+                    className="bg-[#faf9f8] border border-[#d6c2c4]/50 rounded-xl px-3 py-2 text-sm font-sans text-brand-dark outline-none focus:border-brand-primary"
+                  >
+                    <option value="thisMonth">Este mês</option>
+                    <option value="lastMonth">Mês passado</option>
+                    <option value="last30">Últimos 30 dias</option>
+                    <option value="thisYear">Este ano</option>
+                    <option value="custom">Personalizado</option>
+                  </select>
+                  {periodKey === 'custom' && (
+                    <>
+                      <input
+                        type="date"
+                        value={customStart}
+                        onChange={(e) => setCustomStart(e.target.value)}
+                        className="bg-[#faf9f8] border border-[#d6c2c4]/50 rounded-xl px-3 py-2 text-sm"
+                      />
+                      <span className="text-brand-tertiary text-sm">até</span>
+                      <input
+                        type="date"
+                        value={customEnd}
+                        onChange={(e) => setCustomEnd(e.target.value)}
+                        className="bg-[#faf9f8] border border-[#d6c2c4]/50 rounded-xl px-3 py-2 text-sm"
+                      />
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => { setPeriodKey('thisMonth'); setCustomStart(''); setCustomEnd(''); }}
+                    className="ml-auto text-[11px] font-bold uppercase tracking-wider text-brand-primary hover:underline"
+                  >
+                    Limpar filtro
+                  </button>
+                </div>
+              </div>
+
               {/* PRINT ELEMENT CONTROLLER CONTAINER */}
               <div className="bg-white p-8 border border-[#d6c2c4]/30 rounded-2xl shadow-sm space-y-6">
                 {/* Invoice Letterhead */}
