@@ -285,8 +285,11 @@ async function startServer() {
   });
 
   // 4. TRANSACTIONS
-  app.get('/api/transactions', requireAdmin, async (req, res) => {
+  app.get('/api/transactions', tryAuth, async (req: AuthedRequest, res) => {
     const transactions = await getTransactions();
+    if (req.user && req.user.roleType === 'professional') {
+      return res.json(transactions.filter(t => t.specialistId === req.user!.id));
+    }
     res.json(transactions);
   });
 
