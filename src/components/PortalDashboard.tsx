@@ -33,6 +33,36 @@ import {
   KeyRound
 } from 'lucide-react';
 
+type PeriodKey = 'thisMonth' | 'lastMonth' | 'last30' | 'thisYear' | 'custom';
+
+function periodRange(key: PeriodKey, customStart: string, customEnd: string, todayISO: string): { start: string; end: string } {
+  const today = new Date(todayISO + 'T00:00:00');
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  if (key === 'thisMonth') {
+    const start = new Date(today.getFullYear(), today.getMonth(), 1);
+    const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    return { start: iso(start), end: iso(end) };
+  }
+  if (key === 'lastMonth') {
+    const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const end = new Date(today.getFullYear(), today.getMonth(), 0);
+    return { start: iso(start), end: iso(end) };
+  }
+  if (key === 'last30') {
+    const start = new Date(today); start.setDate(start.getDate() - 29);
+    return { start: iso(start), end: iso(today) };
+  }
+  if (key === 'thisYear') {
+    return { start: `${today.getFullYear()}-01-01`, end: `${today.getFullYear()}-12-31` };
+  }
+  // custom
+  return { start: customStart || '0000-01-01', end: customEnd || '9999-12-31' };
+}
+
+function filterByDate<T extends { date: string }>(items: T[], range: { start: string; end: string }): T[] {
+  return items.filter(i => i.date >= range.start && i.date <= range.end);
+}
+
 interface PortalDashboardProps {
   specialists: Specialist[];
   services: Service[];
@@ -97,7 +127,12 @@ export default function PortalDashboard({
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [showDbModal, setShowDbModal] = useState(false);
   const [copiedSql, setCopiedSql] = useState(false);
-  
+
+  // Period filter state (relatorio)
+  const [periodKey, setPeriodKey] = useState<PeriodKey>('thisMonth');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
+
   // Agenda interactive views states
   const [agendaView, setAgendaView] = useState<'diario' | 'semanal' | 'mensal'>('diario');
   const [agendaDate, setAgendaDate] = useState<string>('2026-05-22');
@@ -287,8 +322,10 @@ export default function PortalDashboard({
 
   // Calculations
   const todayBookings = bookings.filter(b => b.date === todayStr);
-  const totalRevenue = transactions.filter(t => t.type === 'entrada').reduce((sum, t) => sum + t.amount, 0);
-  const totalExpenses = transactions.filter(t => t.type === 'saida').reduce((sum, t) => sum + t.amount, 0);
+  const activeRange = periodRange(periodKey, customStart, customEnd, todayStr);
+  const filteredTransactions = filterByDate(transactions, activeRange);
+  const totalRevenue = filteredTransactions.filter(t => t.type === 'entrada').reduce((sum, t) => sum + t.amount, 0);
+  const totalExpenses = filteredTransactions.filter(t => t.type === 'saida').reduce((sum, t) => sum + t.amount, 0);
   const netProfit = totalRevenue - totalExpenses;
 
   // Change booking status (Confirm / Reject / Cancel)
