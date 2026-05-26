@@ -416,6 +416,16 @@ export default function PortalDashboard({
     }
   };
 
+  const resetTransactionForm = () => {
+    setEditingTransactionId(null);
+    setTransType('saida');
+    setTransDescription('');
+    setTransAmount('');
+    setTransDate(new Date().toISOString().split('T')[0]);
+    setTransCategory('Materiais');
+    setTransSpecialistId('');
+  };
+
   const handleStartEditTransaction = (t: Transaction) => {
     setEditingTransactionId(t.id);
     setTransType(t.type);
@@ -449,8 +459,7 @@ export default function PortalDashboard({
       const data = await response.json().catch(() => ({}));
       if (response.ok) {
         onRefreshData();
-        setEditingTransactionId(null);
-        setTransDescription(''); setTransAmount(''); setTransSpecialistId('');
+        resetTransactionForm();
         setActiveTab('financeiro');
         showToast('Lançamento atualizado!');
       } else {
@@ -1757,7 +1766,7 @@ export default function PortalDashboard({
                 {isAdmin && (
                   <div className="flex items-center gap-3">
                     <button
-                      onClick={() => { setEditingTransactionId(null); setTransDescription(''); setTransAmount(''); setTransSpecialistId(''); setActiveTab('nova_operacao'); }}
+                      onClick={() => { resetTransactionForm(); setActiveTab('nova_operacao'); }}
                       className="bg-brand-primary text-white hover:bg-brand-primary-light hover:text-brand-primary py-3 px-6 rounded-full font-bold text-xs uppercase tracking-wider shadow-lg flex items-center gap-1.5 transition-transform active:scale-95"
                     >
                       <Plus className="w-4 h-4" /> Lançar Operação
@@ -2206,8 +2215,7 @@ export default function PortalDashboard({
                     <button
                       type="button"
                       onClick={() => {
-                        setEditingTransactionId(null);
-                        setTransDescription(''); setTransAmount(''); setTransSpecialistId('');
+                        resetTransactionForm();
                         setActiveTab('financeiro');
                       }}
                       className="flex-1 py-3 border border-brand-tertiary/40 rounded-full font-bold text-xs uppercase tracking-wider hover:bg-[#faf9f8]"
