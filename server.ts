@@ -162,7 +162,8 @@ async function startServer() {
       if (error.code === '23505' || /duplicate key|unique/i.test(error.message)) {
         return res.status(409).json({ error: 'Já existe um profissional com esse usuário.' });
       }
-      return res.status(500).json({ error: 'Não foi possível salvar: ' + error.message });
+      console.error('Failed to save specialist:', error);
+      return res.status(500).json({ error: 'Não foi possível salvar o profissional. Tente novamente.' });
     }
     if (saved && (saved as any).passwordHash) delete (saved as any).passwordHash;
     res.json(saved);
@@ -235,7 +236,8 @@ async function startServer() {
       if (specIndex >= 0) {
         const spec = specialists[specIndex];
         spec.attendanceCount += 1;
-        await upsertSpecialist(spec); // attendanceCount bump; error tolerated
+        const { error: bumpErr } = await upsertSpecialist(spec);
+        if (bumpErr) console.warn('Failed to bump attendanceCount for specialist', spec.id, bumpErr);
       }
     }
 
@@ -272,7 +274,8 @@ async function startServer() {
         if (specIndex >= 0) {
           const spec = specialists[specIndex];
           spec.attendanceCount += 1;
-          await upsertSpecialist(spec); // attendanceCount bump; error tolerated
+          const { error: bumpErr } = await upsertSpecialist(spec);
+          if (bumpErr) console.warn('Failed to bump attendanceCount for specialist', spec.id, bumpErr);
         }
       }
       res.json(updated || booking);
