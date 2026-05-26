@@ -30,7 +30,8 @@ import {
   TrendingDown,
   Star,
   MessageSquare,
-  KeyRound
+  KeyRound,
+  Pencil
 } from 'lucide-react';
 
 type PeriodKey = 'thisMonth' | 'lastMonth' | 'last30' | 'thisYear' | 'custom';
@@ -265,6 +266,7 @@ export default function PortalDashboard({
   const [transDate, setTransDate] = useState(new Date().toISOString().split('T')[0]);
   const [transCategory, setTransCategory] = useState('Materiais');
   const [transSpecialistId, setTransSpecialistId] = useState('');
+  const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
 
   // Specialist Setting states
   const [selectedSpec, setSelectedSpec] = useState<Specialist | null>(null);
@@ -411,6 +413,72 @@ export default function PortalDashboard({
       }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleStartEditTransaction = (t: Transaction) => {
+    setEditingTransactionId(t.id);
+    setTransType(t.type);
+    setTransDescription(t.description);
+    setTransAmount(String(t.amount));
+    setTransDate(t.date);
+    setTransCategory(t.category);
+    setTransSpecialistId(t.specialistId || '');
+    setActiveTab('nova_operacao');
+  };
+
+  const handleUpdateTransaction = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTransactionId || !transDescription || !transAmount) return;
+    const selectedSpecObj = specialists.find(s => s.id === transSpecialistId);
+    const patch: Partial<Transaction> = {
+      type: transType,
+      description: transDescription,
+      amount: parseFloat(transAmount),
+      date: transDate,
+      category: transCategory,
+      specialistId: transSpecialistId || undefined,
+      specialistName: selectedSpecObj ? selectedSpecObj.name : undefined,
+    };
+    try {
+      const response = await fetch(`/api/transactions/${editingTransactionId}`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify(patch),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) {
+        onRefreshData();
+        setEditingTransactionId(null);
+        setTransDescription(''); setTransAmount(''); setTransSpecialistId('');
+        setActiveTab('financeiro');
+        showToast('Lançamento atualizado!');
+      } else {
+        showToast(data.error || 'Erro ao atualizar lançamento.');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Erro ao conectar com o servidor.');
+    }
+  };
+
+  const handleDeleteTransaction = async (t: Transaction) => {
+    if (!window.confirm(`Excluir o lançamento "${t.description}" de R$ ${t.amount.toFixed(2)}?`)) return;
+    try {
+      const response = await fetch(`/api/transactions/${t.id}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) {
+        onRefreshData();
+        showToast('Lançamento excluído.');
+      } else {
+        showToast(data.error || 'Erro ao excluir lançamento.');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Erro ao conectar com o servidor.');
     }
   };
 
@@ -1689,7 +1757,7 @@ export default function PortalDashboard({
                 {isAdmin && (
                   <div className="flex items-center gap-3">
                     <button
-                      onClick={() => setActiveTab('nova_operacao')}
+                      onClick={() => { setEditingTransactionId(null); setTransDescription(''); setTransAmount(''); setTransSpecialistId(''); setActiveTab('nova_operacao'); }}
                       className="bg-brand-primary text-white hover:bg-brand-primary-light hover:text-brand-primary py-3 px-6 rounded-full font-bold text-xs uppercase tracking-wider shadow-lg flex items-center gap-1.5 transition-transform active:scale-95"
                     >
                       <Plus className="w-4 h-4" /> Lançar Operação
@@ -1832,6 +1900,7 @@ export default function PortalDashboard({
                         <th className="p-4">Data</th>
                         <th className="p-4">Categoria</th>
                         <th className="p-4 text-right">Valor</th>
+                        {isAdmin && <th className="p-4 text-right">Ações</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-brand-primary-light/10">
@@ -1852,6 +1921,28 @@ export default function PortalDashboard({
                           <td className={`p-4 text-right font-bold ${t.type === 'entrada' ? 'text-emerald-600' : 'text-brand-primary'}`}>
                             {t.type === 'entrada' ? '+' : '-'} R$ {t.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                           </td>
+                          {isAdmin && (
+                            <td className="p-4 text-right">
+                              <div className="inline-flex gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartEditTransaction(t)}
+                                  title="Editar"
+                                  className="p-1.5 rounded hover:bg-brand-primary-light/30 text-brand-primary"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteTransaction(t)}
+                                  title="Excluir"
+                                  className="p-1.5 rounded hover:bg-rose-100 text-rose-600"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -1999,7 +2090,7 @@ export default function PortalDashboard({
             <div className="space-y-8 max-w-xl mx-auto">
               <div>
                 <span className="font-sans text-[11px] font-semibold text-brand-primary tracking-widest uppercase">Lançamento de Caixa</span>
-                <h2 className="font-display text-3xl text-brand-dark">Nova Operação Financeira</h2>
+                <h2 className="font-display text-3xl text-brand-dark">{editingTransactionId ? 'Editar Lançamento' : 'Lançar Nova Operação'}</h2>
                 <p className="text-brand-tertiary text-sm">Registre suas movimentações com elegância e precisão contábil.</p>
               </div>
 
@@ -2028,7 +2119,7 @@ export default function PortalDashboard({
                   </button>
                 </div>
 
-                <form onSubmit={handleCreateTransaction} className="space-y-6">
+                <form onSubmit={editingTransactionId ? handleUpdateTransaction : handleCreateTransaction} className="space-y-6">
                   
                   {/* Descript */}
                   <div className="space-y-1">
@@ -2112,18 +2203,22 @@ export default function PortalDashboard({
 
                   {/* Submit Button */}
                   <div className="pt-4 flex gap-4">
-                    <button 
+                    <button
                       type="button"
-                      onClick={() => setActiveTab('financeiro')}
+                      onClick={() => {
+                        setEditingTransactionId(null);
+                        setTransDescription(''); setTransAmount(''); setTransSpecialistId('');
+                        setActiveTab('financeiro');
+                      }}
                       className="flex-1 py-3 border border-brand-tertiary/40 rounded-full font-bold text-xs uppercase tracking-wider hover:bg-[#faf9f8]"
                     >
                       Cancelar
                     </button>
-                    <button 
+                    <button
                       type="submit"
                       className="flex-1 bg-brand-primary text-white hover:bg-brand-primary-light hover:text-brand-primary py-3 rounded-full font-bold text-xs uppercase tracking-wider shadow-lg flex items-center justify-center gap-1.5 transition-transform active:scale-95"
                     >
-                      Confirmar Lançamento
+                      {editingTransactionId ? 'Salvar Alterações' : 'Lançar Operação'}
                     </button>
                   </div>
 
