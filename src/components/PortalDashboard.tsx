@@ -589,15 +589,6 @@ export default function PortalDashboard({
         </div>
       )}
 
-      {/* Floating Action Button (Universal Add) */}
-      <button 
-        onClick={onGoToBooking}
-        className="fixed bottom-12 right-6 md:right-12 w-14 h-14 bg-brand-primary text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-transform z-50 group"
-        title="Novo Agendamento"
-      >
-        <span className="font-sans font-bold text-2xl group-hover:rotate-90 transition-transform duration-300">+</span>
-      </button>
-
       {/* Main Grid Wrapper */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
         
@@ -685,16 +676,6 @@ export default function PortalDashboard({
               </>
             )}
           </nav>
-
-          <div className="border-t border-brand-primary-light/10 pt-4 mt-4">
-            <button 
-              onClick={onGoToBooking}
-              className="w-full flex items-center justify-center gap-2 bg-brand-primary text-white py-3 rounded-full font-bold text-xs uppercase tracking-wider hover:bg-brand-primary-light hover:text-brand-primary transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              Novo Agendamento
-            </button>
-          </div>
         </aside>
 
         {/* MOBILE NAVIGATION BAR SWITCHER */}

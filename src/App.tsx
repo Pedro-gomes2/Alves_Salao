@@ -3,7 +3,7 @@ import { Specialist, Service, Booking, Transaction, AuthUser } from './types';
 import BookingFlow from './components/BookingFlow';
 import PortalDashboard from './components/PortalDashboard';
 import LoginScreen from './components/LoginScreen';
-import { Sparkles, LayoutDashboard, Heart, Copy, Check, LogOut } from 'lucide-react';
+import { Sparkles, LogOut } from 'lucide-react';
 
 type Route = 'agendar' | 'admin';
 
@@ -61,7 +61,6 @@ export default function App() {
     return '5511999999999';
   });
 
-  const [copiedLink, setCopiedLink] = useState<'client' | 'admin' | null>(null);
   const [loading, setLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(true);
 
@@ -144,16 +143,6 @@ export default function App() {
     navigate('agendar');
   };
 
-  const copyToClipboard = (type: 'client' | 'admin') => {
-    if (typeof window !== 'undefined') {
-      const origin = window.location.origin;
-      const url = type === 'admin' ? `${origin}/admin` : `${origin}/agendar`;
-      navigator.clipboard.writeText(url);
-      setCopiedLink(type);
-      setTimeout(() => setCopiedLink(null), 2000);
-    }
-  };
-
   const isAdminRoute = route === 'admin';
   const isAuthed = !!currentUser && !!authToken;
 
@@ -174,44 +163,6 @@ export default function App() {
 
           {isAdminRoute && isAuthed && (
             <div className="flex flex-wrap items-center gap-3 animate-fade-in">
-              <div className="flex items-center bg-[#eeeeed] p-1 rounded-full border border-brand-primary-light/20 shadow-inner">
-                <button
-                  onClick={() => navigate('agendar')}
-                  className="flex items-center gap-1.5 px-5 py-2 font-sans font-bold text-xs uppercase rounded-full transition-all duration-300 cursor-pointer text-brand-tertiary hover:text-brand-primary"
-                >
-                  <Heart className="w-3.5 h-3.5" />
-                  <span>Ver Agendamento como Cliente</span>
-                </button>
-                <button
-                  className="flex items-center gap-1.5 px-5 py-2 font-sans font-bold text-xs uppercase rounded-full bg-brand-primary text-white shadow-md cursor-default"
-                >
-                  <LayoutDashboard className="w-3.5 h-3.5" />
-                  <span>Portal de Gestão</span>
-                </button>
-              </div>
-
-              {/* Quick copy links (admin-only header tool) */}
-              {currentUser?.roleType === 'admin' && (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => copyToClipboard('client')}
-                    className="flex items-center gap-1.5 px-3 py-2 border border-brand-primary-light/50 bg-white hover:bg-brand-primary-light/20 text-brand-primary text-[11px] font-bold uppercase rounded-full transition-all shadow-sm"
-                    title="Copiar link público de agendamento"
-                  >
-                    {copiedLink === 'client' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>/agendar</span>
-                  </button>
-                  <button
-                    onClick={() => copyToClipboard('admin')}
-                    className="flex items-center gap-1.5 px-3 py-2 border border-brand-primary-light/50 bg-white hover:bg-brand-primary-light/20 text-brand-primary text-[11px] font-bold uppercase rounded-full transition-all shadow-sm"
-                    title="Copiar link do portal"
-                  >
-                    {copiedLink === 'admin' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>/admin</span>
-                  </button>
-                </div>
-              )}
-
               <button
                 onClick={handleLogout}
                 className="flex items-center gap-1.5 px-4 py-2 border border-rose-200/60 bg-rose-50/50 hover:bg-rose-50 text-rose-700 font-sans font-bold text-xs uppercase rounded-full transition-all cursor-pointer shadow-sm active:scale-95"
