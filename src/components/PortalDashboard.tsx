@@ -1691,6 +1691,46 @@ export default function PortalDashboard({
                 </div>
               </div>
 
+              {/* Period filter */}
+              <div className="bg-white border border-brand-primary-light/25 rounded-2xl p-4 flex flex-col md:flex-row md:items-center gap-3">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-brand-tertiary">Período</label>
+                <select
+                  value={periodKey}
+                  onChange={(e) => setPeriodKey(e.target.value as PeriodKey)}
+                  className="bg-[#faf9f8] border border-[#d6c2c4]/50 rounded-xl px-3 py-2 text-sm font-sans text-brand-dark outline-none focus:border-brand-primary"
+                >
+                  <option value="thisMonth">Este mês</option>
+                  <option value="lastMonth">Mês passado</option>
+                  <option value="last30">Últimos 30 dias</option>
+                  <option value="thisYear">Este ano</option>
+                  <option value="custom">Personalizado</option>
+                </select>
+                {periodKey === 'custom' && (
+                  <>
+                    <input
+                      type="date"
+                      value={customStart}
+                      onChange={(e) => setCustomStart(e.target.value)}
+                      className="bg-[#faf9f8] border border-[#d6c2c4]/50 rounded-xl px-3 py-2 text-sm"
+                    />
+                    <span className="text-brand-tertiary text-sm">até</span>
+                    <input
+                      type="date"
+                      value={customEnd}
+                      onChange={(e) => setCustomEnd(e.target.value)}
+                      className="bg-[#faf9f8] border border-[#d6c2c4]/50 rounded-xl px-3 py-2 text-sm"
+                    />
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={() => { setPeriodKey('thisMonth'); setCustomStart(''); setCustomEnd(''); }}
+                  className="ml-auto text-[11px] font-bold uppercase tracking-wider text-brand-primary hover:underline"
+                >
+                  Limpar filtro
+                </button>
+              </div>
+
               {/* Stats Cards Row */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 {/* Entradas */}
@@ -1733,7 +1773,7 @@ export default function PortalDashboard({
               {/* Transactions History Table */}
               <div className="bg-white border border-[#d6c2c4]/20 rounded-2xl overflow-hidden shadow-sm">
                 <div className="p-5 border-b border-brand-primary-light/10 flex justify-between items-center">
-                  <h3 className="font-sans font-bold text-base text-brand-dark">Histórico de Lançamentos ({transactions.length})</h3>
+                  <h3 className="font-sans font-bold text-base text-brand-dark">Histórico de Lançamentos ({filteredTransactions.length})</h3>
                   <button onClick={() => setActiveTab('relatorio_detalhado')} className="text-xs text-brand-primary font-bold hover:underline flex items-center gap-1">
                     <Printer className="w-3.5 h-3.5" /> Detalhar Relatório
                   </button>
@@ -1750,7 +1790,7 @@ export default function PortalDashboard({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-brand-primary-light/10">
-                      {transactions.map(t => (
+                      {filteredTransactions.map(t => (
                         <tr key={t.id} className="hover:bg-[#faf9f8] text-xs transition-colors">
                           <td className="p-4 font-sans font-bold text-brand-dark">
                             {t.description}
