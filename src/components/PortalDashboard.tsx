@@ -326,6 +326,14 @@ export default function PortalDashboard({
   const totalExpenses = filteredTransactions.filter(t => t.type === 'saida').reduce((sum, t) => sum + t.amount, 0);
   const netProfit = totalRevenue - totalExpenses;
 
+  const currentSpec = !isAdmin ? specialists.find(s => s.id === currentUser.id) : undefined;
+  const mySpecialistId = currentUser.id;
+  const myCommissionPct = currentSpec?.commission ?? 0;
+  const myGenerated = filteredTransactions
+    .filter(t => t.type === 'entrada' && t.specialistId === mySpecialistId)
+    .reduce((sum, t) => sum + t.amount, 0);
+  const myEstimatedPayout = (myGenerated * myCommissionPct) / 100;
+
   // Change booking status (Confirm / Reject / Cancel)
   const handleUpdateBookingStatus = async (id: string, status: 'confirmado' | 'cancelado' | 'finalizado') => {
     try {
@@ -1674,19 +1682,20 @@ export default function PortalDashboard({
             <div className="space-y-8">
               <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
                 <div>
-                  <span className="font-sans text-[11px] font-semibold text-brand-primary tracking-widest uppercase font-bold">Fluxo de Caixa</span>
-                  <h2 className="font-display text-3xl text-brand-dark">Resumo Financeiro</h2>
-                  <p className="text-brand-tertiary text-sm">Acompanhe a saúde do seu santuário em tempo real.</p>
+                  <span className="font-sans text-[11px] font-semibold text-brand-primary tracking-widest uppercase font-bold">{isAdmin ? 'Fluxo de Caixa' : 'Meus Atendimentos'}</span>
+                  <h2 className="font-display text-3xl text-brand-dark">{isAdmin ? 'Resumo Financeiro' : 'Meu Financeiro'}</h2>
+                  <p className="text-brand-tertiary text-sm">{isAdmin ? 'Acompanhe a saúde do seu santuário em tempo real.' : 'Acompanhe seus atendimentos e repasses no período selecionado.'}</p>
                 </div>
-
-                <div className="flex items-center gap-3">
-                  <button 
-                    onClick={() => setActiveTab('nova_operacao')}
-                    className="bg-brand-primary text-white hover:bg-brand-primary-light hover:text-brand-primary py-3 px-6 rounded-full font-bold text-xs uppercase tracking-wider shadow-lg flex items-center gap-1.5 transition-transform active:scale-95"
-                  >
-                    <Plus className="w-4 h-4" /> Lançar Operação
-                  </button>
-                </div>
+                {isAdmin && (
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setActiveTab('nova_operacao')}
+                      className="bg-brand-primary text-white hover:bg-brand-primary-light hover:text-brand-primary py-3 px-6 rounded-full font-bold text-xs uppercase tracking-wider shadow-lg flex items-center gap-1.5 transition-transform active:scale-95"
+                    >
+                      <Plus className="w-4 h-4" /> Lançar Operação
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Period filter */}
@@ -1730,51 +1739,89 @@ export default function PortalDashboard({
               </div>
 
               {/* Stats Cards Row */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                {/* Entradas */}
-                <div className="bg-white border border-brand-primary-light/25 rounded-2xl p-6 shadow-sm">
-                  <div className="flex justify-between items-center mb-4">
-                    <span className="font-sans text-[10px] font-bold text-brand-tertiary uppercase tracking-wider">Entradas</span>
-                    <TrendingUp className="w-5 h-5 text-emerald-600" />
+              {isAdmin ? (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                  {/* Entradas */}
+                  <div className="bg-white border border-brand-primary-light/25 rounded-2xl p-6 shadow-sm">
+                    <div className="flex justify-between items-center mb-4">
+                      <span className="font-sans text-[10px] font-bold text-brand-tertiary uppercase tracking-wider">Entradas</span>
+                      <TrendingUp className="w-5 h-5 text-emerald-600" />
+                    </div>
+                    <h3 className="font-display text-2xl lg:text-3xl text-brand-primary font-bold">
+                      R$ {totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-2">Geração de sessões e vendas</p>
                   </div>
-                  <h3 className="font-display text-2xl lg:text-3xl text-brand-primary font-bold">
-                    R$ {totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-2">Geração de sessões e vendas</p>
-                </div>
-
-                {/* Saidas */}
-                <div className="bg-white border border-brand-primary-light/25 rounded-2xl p-6 shadow-sm">
-                  <div className="flex justify-between items-center mb-4">
-                    <span className="font-sans text-[10px] font-bold text-brand-tertiary uppercase tracking-wider">Saídas</span>
-                    <TrendingDown className="w-5 h-5 text-red-600" />
+                  {/* Saidas */}
+                  <div className="bg-white border border-brand-primary-light/25 rounded-2xl p-6 shadow-sm">
+                    <div className="flex justify-between items-center mb-4">
+                      <span className="font-sans text-[10px] font-bold text-brand-tertiary uppercase tracking-wider">Saídas</span>
+                      <TrendingDown className="w-5 h-5 text-red-600" />
+                    </div>
+                    <h3 className="font-display text-2xl lg:text-3xl text-brand-dark font-bold">
+                      R$ {totalExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-2">Custos com materiais e equipe</p>
                   </div>
-                  <h3 className="font-display text-2xl lg:text-3xl text-brand-dark font-bold">
-                    R$ {totalExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-2">Custos com materiais e equipe</p>
-                </div>
-
-                {/* Net Profit */}
-                <div className="bg-brand-secondary text-white rounded-2xl p-6 shadow-md">
-                  <div className="flex justify-between items-center mb-4">
-                    <span className="font-sans text-[10px] font-bold uppercase tracking-wider opacity-75">Lucro Líquido</span>
-                    <DollarSign className="w-5 h-5 opacity-75" />
+                  {/* Net Profit */}
+                  <div className="bg-brand-secondary text-white rounded-2xl p-6 shadow-md">
+                    <div className="flex justify-between items-center mb-4">
+                      <span className="font-sans text-[10px] font-bold uppercase tracking-wider opacity-75">Lucro Líquido</span>
+                      <DollarSign className="w-5 h-5 opacity-75" />
+                    </div>
+                    <h3 className="font-display text-2xl lg:text-3xl font-bold">
+                      R$ {netProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </h3>
+                    <p className="text-xs opacity-75 mt-2">Saldo total consolidado</p>
                   </div>
-                  <h3 className="font-display text-2xl lg:text-3xl font-bold">
-                    R$ {netProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </h3>
-                  <p className="text-xs opacity-75 mt-2">Saldo total consolidado</p>
                 </div>
-              </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                  {/* Faturamento Gerado */}
+                  <div className="bg-white border border-brand-primary-light/25 rounded-2xl p-6 shadow-sm">
+                    <div className="flex justify-between items-center mb-4">
+                      <span className="font-sans text-[10px] font-bold text-brand-tertiary uppercase tracking-wider">Faturamento Gerado</span>
+                      <TrendingUp className="w-5 h-5 text-emerald-600" />
+                    </div>
+                    <h3 className="font-display text-2xl lg:text-3xl text-brand-primary font-bold">
+                      R$ {myGenerated.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-2">Atendimentos seus no período</p>
+                  </div>
+                  {/* Sua Comissão (%) */}
+                  <div className="bg-white border border-brand-primary-light/25 rounded-2xl p-6 shadow-sm">
+                    <div className="flex justify-between items-center mb-4">
+                      <span className="font-sans text-[10px] font-bold text-brand-tertiary uppercase tracking-wider">Sua Comissão</span>
+                      <DollarSign className="w-5 h-5 text-brand-secondary" />
+                    </div>
+                    <h3 className="font-display text-2xl lg:text-3xl text-brand-dark font-bold">
+                      {myCommissionPct}%
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-2">Definida pela administração</p>
+                  </div>
+                  {/* Repasse Estimado */}
+                  <div className="bg-brand-secondary text-white rounded-2xl p-6 shadow-md">
+                    <div className="flex justify-between items-center mb-4">
+                      <span className="font-sans text-[10px] font-bold uppercase tracking-wider opacity-75">Repasse Estimado</span>
+                      <DollarSign className="w-5 h-5 opacity-75" />
+                    </div>
+                    <h3 className="font-display text-2xl lg:text-3xl font-bold">
+                      R$ {myEstimatedPayout.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </h3>
+                    <p className="text-xs opacity-75 mt-2">Faturamento × comissão</p>
+                  </div>
+                </div>
+              )}
 
               {/* Transactions History Table */}
               <div className="bg-white border border-[#d6c2c4]/20 rounded-2xl overflow-hidden shadow-sm">
                 <div className="p-5 border-b border-brand-primary-light/10 flex justify-between items-center">
-                  <h3 className="font-sans font-bold text-base text-brand-dark">Histórico de Lançamentos ({filteredTransactions.length})</h3>
-                  <button onClick={() => setActiveTab('relatorio_detalhado')} className="text-xs text-brand-primary font-bold hover:underline flex items-center gap-1">
-                    <Printer className="w-3.5 h-3.5" /> Detalhar Relatório
-                  </button>
+                  <h3 className="font-sans font-bold text-base text-brand-dark">{isAdmin ? 'Histórico de Lançamentos' : 'Meus Atendimentos'} ({filteredTransactions.length})</h3>
+                  {isAdmin && (
+                    <button onClick={() => setActiveTab('relatorio_detalhado')} className="text-xs text-brand-primary font-bold hover:underline flex items-center gap-1">
+                      <Printer className="w-3.5 h-3.5" /> Detalhar Relatório
+                    </button>
+                  )}
                 </div>
 
                 <div className="overflow-x-auto">
@@ -1792,7 +1839,7 @@ export default function PortalDashboard({
                         <tr key={t.id} className="hover:bg-[#faf9f8] text-xs transition-colors">
                           <td className="p-4 font-sans font-bold text-brand-dark">
                             {t.description}
-                            {t.specialistName && (
+                            {isAdmin && t.specialistName && (
                               <span className="block text-[10px] text-brand-secondary font-semibold mt-0.5">Gerado por: {t.specialistName}</span>
                             )}
                           </td>
