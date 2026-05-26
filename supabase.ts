@@ -3,15 +3,21 @@ import { Specialist, Service, Booking, Transaction } from './src/types';
 import { INITIAL_SPECIALISTS, INITIAL_SERVICES, INITIAL_BOOKINGS, INITIAL_TRANSACTIONS } from './src/data';
 
 const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+const supabaseKey = supabaseServiceKey || supabaseAnonKey;
 
-export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
+export const isSupabaseConfigured = !!(supabaseUrl && supabaseKey);
 
 let supabaseClient: any = null;
 if (isSupabaseConfigured) {
   try {
-    supabaseClient = createClient(supabaseUrl!, supabaseAnonKey!);
-    console.log('Supabase client initialized successfully.');
+    supabaseClient = createClient(supabaseUrl!, supabaseKey!);
+    const mode = supabaseServiceKey ? 'service_role (bypasses RLS)' : 'anon (RLS enforced — writes may fail)';
+    console.log(`Supabase client initialized successfully. Auth mode: ${mode}.`);
+    if (!supabaseServiceKey) {
+      console.warn('SUPABASE_SERVICE_ROLE_KEY not set — admin writes to specialists/services/transactions will fail under RLS.');
+    }
   } catch (error) {
     console.error('Failed to initialize Supabase client:', error);
   }
@@ -118,23 +124,49 @@ export async function getSpecialists(): Promise<Specialist[]> {
   return specialistsMem;
 }
 
-export async function upsertSpecialist(specialist: Specialist): Promise<Specialist> {
+export async function upsertSpecialist(
+  specialist: Specialist
+): Promise<{ data: Specialist; error: { code?: string; message: string } | null }> {
   if (supabaseClient) {
     try {
-      const { data, error } = await supabaseClient.from('specialists').upsert(specialist).select().single();
-      if (!error && data) return data as Specialist;
-      console.warn('Supabase specialist upsert failed, falling back to memory:', error);
-    } catch (e) {
+      const { data, error } = await supabaseClient
+        .from('specialists')
+        .upsert(specialist)
+        .select()
+        .single();
+      if (error) {
+        console.warn('Supabase specialist upsert failed:', error);
+        return { data: specialist, error: { code: (error as any).code, message: error.message } };
+      }
+      // mirror to memory so reads stay consistent if Supabase later fails
+      const idx = specialistsMem.findIndex(s => s.id === (data as Specialist).id);
+      if (idx >= 0) specialistsMem[idx] = data as Specialist; else specialistsMem.push(data as Specialist);
+      return { data: data as Specialist, error: null };
+    } catch (e: any) {
       console.warn('Supabase specialist upsert error:', e);
+      return { data: specialist, error: { message: e?.message || 'unknown error' } };
     }
   }
+  // memory-only mode
   const idx = specialistsMem.findIndex(s => s.id === specialist.id);
-  if (idx >= 0) {
-    specialistsMem[idx] = specialist;
-  } else {
-    specialistsMem.push(specialist);
+  if (idx >= 0) specialistsMem[idx] = specialist; else specialistsMem.push(specialist);
+  return { data: specialist, error: null };
+}
+
+export async function getSpecialistByUsername(username: string): Promise<Specialist | null> {
+  if (supabaseClient) {
+    try {
+      const { data, error } = await supabaseClient
+        .from('specialists')
+        .select('*')
+        .eq('username', username)
+        .limit(1);
+      if (!error && data && data.length > 0) return data[0] as Specialist;
+    } catch (e) {
+      console.warn('Supabase specialist-by-username error:', e);
+    }
   }
-  return specialist;
+  return specialistsMem.find(s => s.username === username) || null;
 }
 
 export async function deleteSpecialist(id: string): Promise<boolean> {

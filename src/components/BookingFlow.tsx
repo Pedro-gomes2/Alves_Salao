@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Specialist, Service, Booking } from '../types';
+import { nextNDays, computeSlotAvailability, ymd } from '../utils/timeSlots';
 import { 
   Sparkles, 
   Activity, 
@@ -30,23 +31,29 @@ import {
 interface BookingFlowProps {
   specialists: Specialist[];
   services: Service[];
+  bookings: Booking[];
   onBookingConfirmed: (newBooking: Booking) => void;
   onGoToPortal: () => void;
   salonWhatsapp?: string;
+  onRefreshBookings?: () => void;
 }
 
-export default function BookingFlow({ 
-  specialists, 
-  services, 
-  onBookingConfirmed, 
+export default function BookingFlow({
+  specialists,
+  services,
+  bookings,
+  onBookingConfirmed,
   onGoToPortal,
-  salonWhatsapp = '5511999999999' 
+  salonWhatsapp = '5511999999999',
+  onRefreshBookings,
 }: BookingFlowProps) {
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [selectedSpecialist, setSelectedSpecialist] = useState<Specialist | null>(null);
   const [selectedServices, setSelectedServices] = useState<Service[]>([]);
-  const [selectedDate, setSelectedDate] = useState<string>('24'); // Defaulting to the screenshot's '14' or '24'
+  const dayOptions = useMemo(() => nextNDays(14), []);
+  const [selectedDate, setSelectedDate] = useState<string>(() => ymd(new Date()));
   const [selectedTime, setSelectedTime] = useState<string>('');
+  const [bookingError, setBookingError] = useState<string>('');
   const [userName, setUserName] = useState<string>('');
   const [userWhatsapp, setUserWhatsapp] = useState<string>('');
   const [finalBooking, setFinalBooking] = useState<Booking | null>(null);
@@ -54,7 +61,37 @@ export default function BookingFlow({
   // Auto scroll to top on step change
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [step]);
+    if (step === 3 && onRefreshBookings) {
+      onRefreshBookings();
+    }
+  }, [step, onRefreshBookings]);
+
+  // Total duration of the currently chosen services — used to detect overlap
+  const totalDuration = useMemo(
+    () => selectedServices.reduce((acc, s) => acc + s.duration, 0),
+    [selectedServices]
+  );
+
+  // Compute slot availability for the currently selected day + specialist + services
+  const slotAvailability = useMemo(() => {
+    if (!selectedSpecialist || totalDuration === 0) return [];
+    return computeSlotAvailability({
+      dateStr: selectedDate,
+      durationMin: totalDuration,
+      specialistId: selectedSpecialist.id,
+      bookings,
+    });
+  }, [selectedSpecialist, selectedDate, totalDuration, bookings]);
+
+  // If the currently selected time becomes unavailable (past/conflict) when bookings refresh,
+  // clear it so the user picks a fresh slot.
+  useEffect(() => {
+    if (!selectedTime) return;
+    const match = slotAvailability.find(s => s.time === selectedTime);
+    if (match && (match.past || match.conflict)) {
+      setSelectedTime('');
+    }
+  }, [slotAvailability, selectedTime]);
 
   // Handle WhatsApp Input Mask: (99) 9 9999-9999 or similar
   const handleWhatsappChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -115,7 +152,6 @@ export default function BookingFlow({
     if (!selectedSpecialist || selectedServices.length === 0 || !selectedTime || !userName || !userWhatsapp) return;
 
     const totalPrice = selectedServices.reduce((acc, s) => acc + s.price, 0);
-    const totalDuration = selectedServices.reduce((acc, s) => acc + s.duration, 0);
 
     const booking: Booking = {
       id: 'book-' + Date.now(),
@@ -125,7 +161,7 @@ export default function BookingFlow({
       userWhatsapp,
       serviceIds: selectedServices.map(s => s.id),
       serviceNames: selectedServices.map(s => s.name),
-      date: `2026-05-${selectedDate.padStart(2, '0')}`,
+      date: selectedDate,
       time: selectedTime,
       status: 'pendente', // Default to pending as per professional confirmation
       totalPrice,
@@ -138,7 +174,7 @@ export default function BookingFlow({
 *WhatsApp:* ${userWhatsapp}
 *Procedimento(s):* ${selectedServices.map(s => s.name).join(', ')}
 *Profissional:* ${selectedSpecialist.name}
-*Data e Hora:* Dia ${selectedDate} de Maio de 2026, às ${selectedTime}
+*Data e Hora:* ${selectedDate.split('-').reverse().join('/')} às ${selectedTime}
 *Valor Total:* R$ ${totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
 *Duração total:* ${totalDuration} minutos`;
 
@@ -158,6 +194,13 @@ export default function BookingFlow({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(booking),
       });
+      if (response.status === 409) {
+        const data = await response.json().catch(() => ({}));
+        setBookingError(data.error || 'Esse horário acabou de ser ocupado. Escolha outro.');
+        setStep(3);
+        if (onRefreshBookings) onRefreshBookings();
+        return;
+      }
       if (response.ok) {
         const savedBooking = await response.json();
         setFinalBooking(savedBooking);
@@ -559,101 +602,110 @@ export default function BookingFlow({
         <section className="animate-fade-in max-w-xl mx-auto">
           <div className="mb-6">
             <h3 className="font-display text-2xl text-brand-primary mb-1">Selecione uma Data</h3>
-            <p className="text-sm text-brand-tertiary">Maio 2026</p>
+            <p className="text-sm text-brand-tertiary">Próximos 14 dias</p>
           </div>
 
-          {/* Interactive Date Scroll */}
-          <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar mb-8 cursor-pointer">
-            {['22', '23', '24', '25', '26', '27'].map((day) => {
-              const isSelected = selectedDate === day;
-              // Map day strings to DOWs
-              const daysOfWeek: { [key: string]: string } = {
-                '22': 'SEX', '23': 'SÁB', '24': 'SEG', '25': 'TER', '26': 'QUA', '27': 'QUI'
-              };
+          {/* Interactive Date Scroll — dynamic next 14 days */}
+          <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar mb-8">
+            {dayOptions.map((d) => {
+              const isSelected = selectedDate === d.dateStr;
               return (
-                <div 
-                  key={day}
-                  onClick={() => setSelectedDate(day)}
-                  className={`min-w-[70px] h-20 flex flex-col items-center justify-center rounded-xl border transition-all ${
-                    isSelected 
-                      ? 'bg-brand-primary text-white border-brand-primary shadow-md scale-102 font-bold' 
+                <button
+                  type="button"
+                  key={d.dateStr}
+                  onClick={() => { setSelectedDate(d.dateStr); setSelectedTime(''); setBookingError(''); }}
+                  className={`min-w-[70px] h-20 flex flex-col items-center justify-center rounded-xl border transition-all cursor-pointer shrink-0 ${
+                    isSelected
+                      ? 'bg-brand-primary text-white border-brand-primary shadow-md scale-105 font-bold'
                       : 'bg-white border-brand-primary-light/40 text-brand-dark hover:border-brand-primary'
                   }`}
                 >
-                  <span className="font-sans text-[10px] font-bold tracking-widest opacity-65 mb-1">{daysOfWeek[day] || 'SEG'}</span>
-                  <span className="font-sans text-xl font-bold">{day}</span>
-                </div>
+                  <span className="font-sans text-[10px] font-bold tracking-widest opacity-65 mb-1">{d.dowAbbr}</span>
+                  <span className="font-sans text-xl font-bold">{d.dayNum}/{d.monthLabel}</span>
+                  {d.isToday && (
+                    <span className={`text-[8px] font-bold uppercase mt-0.5 tracking-wider ${isSelected ? 'text-white/80' : 'text-brand-secondary'}`}>Hoje</span>
+                  )}
+                </button>
               );
             })}
           </div>
 
+          {bookingError && (
+            <div className="mb-6 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold rounded-xl p-3.5">
+              {bookingError}
+            </div>
+          )}
+
           <div className="mb-6">
-            <h3 className="font-display text-xl text-brand-primary mb-4 flex items-center gap-1.5">
+            <h3 className="font-display text-xl text-brand-primary mb-1 flex items-center gap-1.5">
               <Clock className="w-5 h-5 text-brand-primary" />
               Horários Disponíveis
             </h3>
+            <p className="text-xs text-brand-tertiary">
+              Duração estimada: <strong>{totalDuration} min</strong>. Horários ocupados ou que já passaram aparecem desativados.
+            </p>
           </div>
 
-          {/* Morning Slots */}
-          <div className="mb-8">
-            <div className="flex items-center gap-1 mb-3 text-brand-tertiary text-xs font-bold tracking-wide">
-              <Sun className="w-4 h-4" />
-              <span>MANHÃ</span>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              {['09:00', '09:30', '10:00', '10:30', '11:00'].map(t => {
-                const isSelected = selectedTime === t;
-                return (
-                  <button 
-                    type="button"
-                    key={t}
-                    onClick={() => handleTimeSelect(t)}
-                    className={`py-3 rounded-lg border font-bold text-xs transition-colors ${
-                      isSelected 
-                        ? 'bg-brand-primary text-white border-brand-primary shadow-sm' 
-                        : 'bg-white border-brand-primary-light/20 text-brand-tertiary hover:bg-brand-primary-light/30'
-                    }`}
-                  >
-                    {t}
-                  </button>
-                );
-              })}
-              <button 
-                disabled 
-                type="button" 
-                className="py-3 rounded-lg border border-brand-tertiary/10 bg-[#faf9f8] text-brand-tertiary/20 font-bold text-xs cursor-not-allowed"
-              >
-                11:30 (Ocupado)
-              </button>
-            </div>
-          </div>
+          {(() => {
+            const morning = slotAvailability.filter(s => s.time < '12:00');
+            const afternoon = slotAvailability.filter(s => s.time >= '12:00');
+            const allUnavailable = slotAvailability.length > 0 && slotAvailability.every(s => s.past || s.conflict);
 
-          {/* Afternoon Slots */}
-          <div className="mb-8">
-            <div className="flex items-center gap-1 mb-3 text-[#645055] text-xs font-bold tracking-wide">
-              <Droplets className="w-4 h-4" />
-              <span>TARDE</span>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              {['14:00', '14:30', '15:00', '15:30', '16:00', '16:30'].map(t => {
-                const isSelected = selectedTime === t;
-                return (
-                  <button 
-                    type="button"
-                    key={t}
-                    onClick={() => handleTimeSelect(t)}
-                    className={`py-3 rounded-lg border font-bold text-xs transition-colors ${
-                      isSelected 
-                        ? 'bg-brand-primary text-white border-brand-primary shadow-sm' 
-                        : 'bg-white border-brand-primary-light/20 text-brand-tertiary hover:bg-brand-primary-light/30'
-                    }`}
-                  >
-                    {t}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+            const renderSlot = (s: typeof slotAvailability[number]) => {
+              const isSelected = selectedTime === s.time;
+              const disabled = s.past || s.conflict;
+              const label = s.conflict ? `${s.time} (Ocupado)` : s.time;
+              return (
+                <button
+                  type="button"
+                  key={s.time}
+                  disabled={disabled}
+                  onClick={() => !disabled && handleTimeSelect(s.time)}
+                  className={`py-3 rounded-lg border font-bold text-xs transition-colors ${
+                    disabled
+                      ? 'border-brand-tertiary/10 bg-[#faf9f8] text-brand-tertiary/30 cursor-not-allowed'
+                      : isSelected
+                        ? 'bg-brand-primary text-white border-brand-primary shadow-sm'
+                        : 'bg-white border-brand-primary-light/20 text-brand-tertiary hover:bg-brand-primary-light/30 cursor-pointer'
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            };
+
+            return (
+              <>
+                <div className="mb-8">
+                  <div className="flex items-center gap-1 mb-3 text-brand-tertiary text-xs font-bold tracking-wide">
+                    <Sun className="w-4 h-4" />
+                    <span>MANHÃ</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    {morning.length === 0 ? (
+                      <span className="col-span-3 text-xs italic text-brand-tertiary/70 py-2">Sem horários cadastrados.</span>
+                    ) : morning.map(renderSlot)}
+                  </div>
+                </div>
+                <div className="mb-8">
+                  <div className="flex items-center gap-1 mb-3 text-[#645055] text-xs font-bold tracking-wide">
+                    <Droplets className="w-4 h-4" />
+                    <span>TARDE</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    {afternoon.length === 0 ? (
+                      <span className="col-span-3 text-xs italic text-brand-tertiary/70 py-2">Sem horários cadastrados.</span>
+                    ) : afternoon.map(renderSlot)}
+                  </div>
+                </div>
+                {allUnavailable && (
+                  <div className="mb-8 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold rounded-xl p-4 text-center">
+                    Nenhum horário disponível neste dia. Escolha outra data acima.
+                  </div>
+                )}
+              </>
+            );
+          })()}
 
           {/* Action Footer */}
           <div className="mt-8 border-t border-brand-primary-light/40 pt-6 flex items-center justify-between mb-8">
@@ -843,7 +895,7 @@ export default function BookingFlow({
 *WhatsApp:* ${userWhatsapp}
 *Procedimento(s):* ${selectedServices.map(s => s.name).join(', ')}
 *Profissional:* ${selectedSpecialist ? selectedSpecialist.name : ''}
-*Data e Hora:* Dia ${selectedDate} de Maio de 2026, às ${selectedTime}
+*Data e Hora:* ${selectedDate.split('-').reverse().join('/')} às ${selectedTime}
 *Valor Total:* R$ ${selectedServices.reduce((sum, s) => sum + s.price, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
 *Duração total:* ${selectedServices.reduce((sum, s) => sum + s.duration, 0)} minutos`)}`}
               target="_blank"

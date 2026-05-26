@@ -87,7 +87,23 @@ export const INITIAL_SERVICES: Service[] = [
   }
 ];
 
+// Seeded specialists have no hash; the server accepts the initial password
+// "alves2026" via fallback. Replace passwords via the Equipe form to lock down.
 export const INITIAL_SPECIALISTS: Specialist[] = [
+  {
+    id: 'spec-admin',
+    name: 'Administração Alves',
+    role: 'Administradora',
+    specialty: 'Gestão geral do salão',
+    commission: 0,
+    avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=300',
+    rating: 5,
+    services: [],
+    active: true,
+    attendanceCount: 0,
+    username: 'admin',
+    roleType: 'admin',
+  },
   {
     id: 'spec-1',
     name: 'Juliana Neves',
@@ -99,6 +115,8 @@ export const INITIAL_SPECIALISTS: Specialist[] = [
     services: ['service-pod-1', 'service-pod-2'],
     active: true,
     attendanceCount: 158,
+    username: 'juliana',
+    roleType: 'professional',
   },
   {
     id: 'spec-2',
@@ -111,6 +129,8 @@ export const INITIAL_SPECIALISTS: Specialist[] = [
     services: ['service-nail-1', 'service-nail-2', 'service-nail-3'],
     active: true,
     attendanceCount: 214,
+    username: 'gabriela',
+    roleType: 'professional',
   },
   {
     id: 'spec-3',
@@ -123,6 +143,8 @@ export const INITIAL_SPECIALISTS: Specialist[] = [
     services: ['service-hair-1', 'service-hair-2', 'service-hair-3'],
     active: true,
     attendanceCount: 187,
+    username: 'karina',
+    roleType: 'professional',
   },
   {
     id: 'spec-4',
@@ -135,6 +157,8 @@ export const INITIAL_SPECIALISTS: Specialist[] = [
     services: ['service-lash-1', 'service-lash-2'],
     active: true,
     attendanceCount: 230,
+    username: 'aline',
+    roleType: 'professional',
   }
 ];
 

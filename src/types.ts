@@ -1,3 +1,5 @@
+export type RoleType = 'admin' | 'professional';
+
 export interface Specialist {
   id: string;
   name: string;
@@ -9,6 +11,21 @@ export interface Specialist {
   services: string[]; // array of serviceIds
   active: boolean;
   attendanceCount: number; // mock or tracked number of attendances
+  username?: string;
+  passwordHash?: string;
+  roleType?: RoleType;
+}
+
+export interface AuthUser {
+  id: string;
+  name: string;
+  username: string;
+  roleType: RoleType;
+}
+
+export interface LoginResponse {
+  token: string;
+  user: AuthUser;
 }
 
 export interface Service {

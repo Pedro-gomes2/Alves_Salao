@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Specialist, Service, Booking, Transaction } from '../types';
+import { Specialist, Service, Booking, Transaction, AuthUser } from '../types';
+import BookingDetailsModal from './BookingDetailsModal';
 import { 
   LayoutDashboard, 
   Calendar, 
@@ -28,8 +29,39 @@ import {
   ChevronLeft,
   TrendingDown,
   Star,
-  MessageSquare
+  MessageSquare,
+  KeyRound
 } from 'lucide-react';
+
+type PeriodKey = 'thisMonth' | 'lastMonth' | 'last30' | 'thisYear' | 'custom';
+
+function periodRange(key: PeriodKey, customStart: string, customEnd: string, todayISO: string): { start: string; end: string } {
+  const today = new Date(todayISO + 'T00:00:00');
+  const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  if (key === 'thisMonth') {
+    const start = new Date(today.getFullYear(), today.getMonth(), 1);
+    const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    return { start: iso(start), end: iso(end) };
+  }
+  if (key === 'lastMonth') {
+    const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const end = new Date(today.getFullYear(), today.getMonth(), 0);
+    return { start: iso(start), end: iso(end) };
+  }
+  if (key === 'last30') {
+    const start = new Date(today); start.setDate(start.getDate() - 29);
+    return { start: iso(start), end: iso(today) };
+  }
+  if (key === 'thisYear') {
+    return { start: `${today.getFullYear()}-01-01`, end: `${today.getFullYear()}-12-31` };
+  }
+  // custom
+  return { start: customStart || '0000-01-01', end: customEnd || '9999-12-31' };
+}
+
+function filterByDate<T extends { date: string }>(items: T[], range: { start: string; end: string }): T[] {
+  return items.filter(i => i.date >= range.start && i.date <= range.end);
+}
 
 interface PortalDashboardProps {
   specialists: Specialist[];
@@ -37,10 +69,11 @@ interface PortalDashboardProps {
   bookings: Booking[];
   transactions: Transaction[];
   onRefreshData: () => void;
-  onGoToBooking: () => void;
   dbStatus?: { configured: boolean; mode: string };
   salonWhatsapp?: string;
   onChangeSalonWhatsapp?: (num: string) => void;
+  currentUser: AuthUser;
+  authToken: string;
 }
 
 type AdminTab = 'dashboard' | 'agenda' | 'equipe' | 'financeiro' | 'relatorio_detalhado' | 'nova_operacao' | 'config_especialist' | 'servicos' | 'config_servico';
@@ -51,16 +84,53 @@ export default function PortalDashboard({
   bookings, 
   transactions, 
   onRefreshData,
-  onGoToBooking,
   dbStatus = { configured: false, mode: 'local_memory' },
   salonWhatsapp = '5511999999999',
-  onChangeSalonWhatsapp
+  onChangeSalonWhatsapp,
+  currentUser,
+  authToken,
 }: PortalDashboardProps) {
-  const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
+  const isAdmin = currentUser.roleType === 'admin';
+  const authHeaders = (): Record<string, string> => ({
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${authToken}`,
+  });
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  // Keep selectedBooking in sync with latest data after status changes
+  useEffect(() => {
+    if (selectedBooking) {
+      const fresh = bookings.find(b => b.id === selectedBooking.id);
+      if (fresh && fresh.status !== selectedBooking.status) {
+        setSelectedBooking(fresh);
+      }
+    }
+  }, [bookings, selectedBooking]);
+  const [activeTab, setActiveTab] = useState<AdminTab>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('portal_active_tab') as AdminTab | null;
+      if (saved) return saved;
+    }
+    return isAdmin ? 'dashboard' : 'agenda';
+  });
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('portal_active_tab', activeTab);
+    }
+  }, [activeTab]);
+
+  // New credential fields for the specialist form (admin-only)
+  const [specUsername, setSpecUsername] = useState('');
+  const [specNewPassword, setSpecNewPassword] = useState('');
+  const [specRoleType, setSpecRoleType] = useState<'admin' | 'professional'>('professional');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [showDbModal, setShowDbModal] = useState(false);
   const [copiedSql, setCopiedSql] = useState(false);
-  
+
+  // Period filter state (relatorio)
+  const [periodKey, setPeriodKey] = useState<PeriodKey>('thisMonth');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
+
   // Agenda interactive views states
   const [agendaView, setAgendaView] = useState<'diario' | 'semanal' | 'mensal'>('diario');
   const [agendaDate, setAgendaDate] = useState<string>('2026-05-22');
@@ -221,6 +291,22 @@ export default function PortalDashboard({
   // Success indicator message
   const [actionSuccessMessage, setActionSuccessMessage] = useState<string | null>(null);
 
+  // Normalize first name → username suggestion (lower, no accents, no spaces)
+  const suggestUsernameFromName = (fullName: string): string => {
+    const first = (fullName || '').trim().split(/\s+/)[0] || '';
+    return first
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/\p{M}/gu, '')
+      .replace(/[^a-z0-9]/g, '');
+  };
+  useEffect(() => {
+    if (isNewSpec && !specUsername && specName) {
+      setSpecUsername(suggestUsernameFromName(specName));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [specName, isNewSpec]);
+
   // Auto trigger alerts
   const showToast = (msg: string) => {
     setActionSuccessMessage(msg);
@@ -234,8 +320,10 @@ export default function PortalDashboard({
 
   // Calculations
   const todayBookings = bookings.filter(b => b.date === todayStr);
-  const totalRevenue = transactions.filter(t => t.type === 'entrada').reduce((sum, t) => sum + t.amount, 0);
-  const totalExpenses = transactions.filter(t => t.type === 'saida').reduce((sum, t) => sum + t.amount, 0);
+  const activeRange = periodRange(periodKey, customStart, customEnd, todayStr);
+  const filteredTransactions = filterByDate(transactions, activeRange);
+  const totalRevenue = filteredTransactions.filter(t => t.type === 'entrada').reduce((sum, t) => sum + t.amount, 0);
+  const totalExpenses = filteredTransactions.filter(t => t.type === 'saida').reduce((sum, t) => sum + t.amount, 0);
   const netProfit = totalRevenue - totalExpenses;
 
   // Change booking status (Confirm / Reject / Cancel)
@@ -243,7 +331,7 @@ export default function PortalDashboard({
     try {
       const response = await fetch(`/api/bookings/${id}/status`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify({ status })
       });
       if (response.ok) {
@@ -302,7 +390,7 @@ export default function PortalDashboard({
     try {
       const response = await fetch('/api/transactions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify(transPayload)
       });
       if (response.ok) {
@@ -329,6 +417,9 @@ export default function PortalDashboard({
     setSpecActive(spec.active);
     setSpecAvatar(spec.avatarUrl);
     setSpecSelectedServices(spec.services);
+    setSpecUsername(spec.username || '');
+    setSpecNewPassword('');
+    setSpecRoleType((spec.roleType as 'admin' | 'professional') || 'professional');
     setActiveTab('config_especialist');
   };
 
@@ -342,13 +433,16 @@ export default function PortalDashboard({
     setSpecActive(true);
     setSpecAvatar('https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=300');
     setSpecSelectedServices([]);
+    setSpecUsername('');
+    setSpecNewPassword('');
+    setSpecRoleType('professional');
     setActiveTab('config_especialist');
   };
 
   // Save specialist configurations
   const handleSaveSpecialistSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    const payload: Specialist = {
+    const payload: Specialist & { newPassword?: string } = {
       id: isNewSpec ? 'spec-' + Date.now() : selectedSpec!.id,
       name: specName,
       role: specRole,
@@ -358,22 +452,29 @@ export default function PortalDashboard({
       rating: isNewSpec ? 4.9 : selectedSpec!.rating,
       services: specSelectedServices,
       active: specActive,
-      attendanceCount: isNewSpec ? 0 : selectedSpec!.attendanceCount
+      attendanceCount: isNewSpec ? 0 : selectedSpec!.attendanceCount,
+      username: specUsername.trim().toLowerCase() || undefined,
+      roleType: specRoleType,
     };
+    if (specNewPassword) payload.newPassword = specNewPassword;
 
     try {
       const response = await fetch('/api/specialists', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify(payload)
       });
+      const data = await response.json().catch(() => ({}));
       if (response.ok) {
         onRefreshData();
         setActiveTab('equipe');
         showToast(isNewSpec ? 'Nova profissional adicionada!' : 'Configurações de profissional salvas!');
+      } else {
+        showToast(data.error || 'Erro ao salvar profissional.');
       }
     } catch (err) {
       console.error(err);
+      showToast('Erro ao conectar com o servidor.');
     }
   };
 
@@ -381,7 +482,8 @@ export default function PortalDashboard({
     if (!window.confirm('Tem certeza de que deseja remover esta profissional da equipe?')) return;
     try {
       const response = await fetch(`/api/specialists/${specId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: authHeaders(),
       });
       if (response.ok) {
         onRefreshData();
@@ -393,6 +495,35 @@ export default function PortalDashboard({
     } catch (err) {
       console.error(err);
       showToast('Erro ao se conectar com o servidor.');
+    }
+  };
+
+  const handleResetPassword = async (spec: Specialist) => {
+    const newPassword = window.prompt(`Nova senha para ${spec.name} (mín. 4 caracteres):`);
+    if (!newPassword || newPassword.length < 4) {
+      if (newPassword !== null) showToast('Senha muito curta. Mínimo 4 caracteres.');
+      return;
+    }
+    try {
+      const payload: Specialist & { newPassword?: string } = {
+        ...spec,
+        newPassword,
+      };
+      const response = await fetch('/api/specialists', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) {
+        onRefreshData();
+        showToast(`Senha de ${spec.name} atualizada!`);
+      } else {
+        showToast(data.error || 'Erro ao resetar senha.');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Erro ao conectar com o servidor.');
     }
   };
 
@@ -433,7 +564,7 @@ export default function PortalDashboard({
     try {
       const response = await fetch('/api/services', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify(payload)
       });
       if (response.ok) {
@@ -453,7 +584,8 @@ export default function PortalDashboard({
     if (!window.confirm('Tem certeza de que deseja descartar (remover) este serviço?')) return;
     try {
       const response = await fetch(`/api/services/${serviceId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: authHeaders(),
       });
       if (response.ok) {
         onRefreshData();
@@ -492,15 +624,6 @@ export default function PortalDashboard({
         </div>
       )}
 
-      {/* Floating Action Button (Universal Add) */}
-      <button 
-        onClick={onGoToBooking}
-        className="fixed bottom-12 right-6 md:right-12 w-14 h-14 bg-brand-primary text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-transform z-50 group"
-        title="Novo Agendamento"
-      >
-        <span className="font-sans font-bold text-2xl group-hover:rotate-90 transition-transform duration-300">+</span>
-      </button>
-
       {/* Main Grid Wrapper */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
         
@@ -536,64 +659,58 @@ export default function PortalDashboard({
               <span>Agenda</span>
             </button>
 
-            <button 
-              onClick={() => { setActiveTab('equipe'); setIsDrawerOpen(false); }}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl font-sans text-sm font-bold text-left transition-all ${
-                activeTab === 'equipe' 
-                  ? 'bg-brand-primary-light/30 text-brand-primary' 
-                  : 'text-brand-tertiary hover:bg-[#faf9f8]'
-              }`}
-            >
-              <Users className="w-4 h-4" />
-              <span>Equipe</span>
-            </button>
+            {isAdmin && (
+              <>
+                <button
+                  onClick={() => { setActiveTab('equipe'); setIsDrawerOpen(false); }}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl font-sans text-sm font-bold text-left transition-all ${
+                    activeTab === 'equipe'
+                      ? 'bg-brand-primary-light/30 text-brand-primary'
+                      : 'text-brand-tertiary hover:bg-[#faf9f8]'
+                  }`}
+                >
+                  <Users className="w-4 h-4" />
+                  <span>Equipe</span>
+                </button>
 
-            <button 
-              onClick={() => { setActiveTab('financeiro'); setIsDrawerOpen(false); }}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl font-sans text-sm font-bold text-left transition-all ${
-                activeTab === 'financeiro' 
-                  ? 'bg-brand-primary-light/30 text-brand-primary' 
-                  : 'text-brand-tertiary hover:bg-[#faf9f8]'
-              }`}
-            >
-              <DollarSign className="w-4 h-4" />
-              <span>Financeiro</span>
-            </button>
+                <button
+                  onClick={() => { setActiveTab('financeiro'); setIsDrawerOpen(false); }}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl font-sans text-sm font-bold text-left transition-all ${
+                    activeTab === 'financeiro'
+                      ? 'bg-brand-primary-light/30 text-brand-primary'
+                      : 'text-brand-tertiary hover:bg-[#faf9f8]'
+                  }`}
+                >
+                  <DollarSign className="w-4 h-4" />
+                  <span>Financeiro</span>
+                </button>
 
-            <button 
-              onClick={() => { setActiveTab('relatorio_detalhado'); setIsDrawerOpen(false); }}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl font-sans text-sm font-bold text-left transition-all ${
-                activeTab === 'relatorio_detalhado' 
-                  ? 'bg-brand-primary-light/30 text-brand-primary' 
-                  : 'text-brand-tertiary hover:bg-[#faf9f8]'
-              }`}
-            >
-              <Printer className="w-4 h-4" />
-              <span>Relatório Detalhado</span>
-            </button>
+                <button
+                  onClick={() => { setActiveTab('relatorio_detalhado'); setIsDrawerOpen(false); }}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl font-sans text-sm font-bold text-left transition-all ${
+                    activeTab === 'relatorio_detalhado'
+                      ? 'bg-brand-primary-light/30 text-brand-primary'
+                      : 'text-brand-tertiary hover:bg-[#faf9f8]'
+                  }`}
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>Relatório Detalhado</span>
+                </button>
 
-            <button 
-              onClick={() => { setActiveTab('servicos'); setIsDrawerOpen(false); }}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl font-sans text-sm font-bold text-left transition-all ${
-                activeTab === 'servicos' || activeTab === 'config_servico'
-                  ? 'bg-brand-primary-light/30 text-brand-primary font-bold' 
-                  : 'text-brand-tertiary hover:bg-[#faf9f8]'
-              }`}
-            >
-              <Sparkles className="w-4 h-4" />
-              <span>Gestão de Serviços</span>
-            </button>
+                <button
+                  onClick={() => { setActiveTab('servicos'); setIsDrawerOpen(false); }}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl font-sans text-sm font-bold text-left transition-all ${
+                    activeTab === 'servicos' || activeTab === 'config_servico'
+                      ? 'bg-brand-primary-light/30 text-brand-primary font-bold'
+                      : 'text-brand-tertiary hover:bg-[#faf9f8]'
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>Gestão de Serviços</span>
+                </button>
+              </>
+            )}
           </nav>
-
-          <div className="border-t border-brand-primary-light/10 pt-4 mt-4">
-            <button 
-              onClick={onGoToBooking}
-              className="w-full flex items-center justify-center gap-2 bg-brand-primary text-white py-3 rounded-full font-bold text-xs uppercase tracking-wider hover:bg-brand-primary-light hover:text-brand-primary transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              Novo Agendamento
-            </button>
-          </div>
         </aside>
 
         {/* MOBILE NAVIGATION BAR SWITCHER */}
@@ -612,27 +729,31 @@ export default function PortalDashboard({
             <Calendar className="w-5 h-5" />
             <span className="text-[9px] font-bold mt-1 uppercase">Agenda</span>
           </button>
-          <button 
-            onClick={() => setActiveTab('equipe')}
-            className={`flex flex-col items-center p-2 rounded-lg ${activeTab === 'equipe' ? 'text-brand-primary' : 'text-brand-tertiary/75'}`}
-          >
-            <Users className="w-5 h-5" />
-            <span className="text-[9px] font-bold mt-1 uppercase">Equipe</span>
-          </button>
-          <button 
-            onClick={() => setActiveTab('servicos')}
-            className={`flex flex-col items-center p-2 rounded-lg ${activeTab === 'servicos' ? 'text-brand-primary' : 'text-brand-tertiary/75'}`}
-          >
-            <Sparkles className="w-5 h-5" />
-            <span className="text-[9px] font-bold mt-1 uppercase">Serviços</span>
-          </button>
-          <button 
-            onClick={() => setActiveTab('financeiro')}
-            className={`flex flex-col items-center p-2 rounded-lg ${activeTab === 'financeiro' ? 'text-brand-primary' : 'text-brand-tertiary/75'}`}
-          >
-            <DollarSign className="w-5 h-5" />
-            <span className="text-[9px] font-bold mt-1 uppercase">Caixa</span>
-          </button>
+          {isAdmin && (
+            <>
+              <button
+                onClick={() => setActiveTab('equipe')}
+                className={`flex flex-col items-center p-2 rounded-lg ${activeTab === 'equipe' ? 'text-brand-primary' : 'text-brand-tertiary/75'}`}
+              >
+                <Users className="w-5 h-5" />
+                <span className="text-[9px] font-bold mt-1 uppercase">Equipe</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('servicos')}
+                className={`flex flex-col items-center p-2 rounded-lg ${activeTab === 'servicos' ? 'text-brand-primary' : 'text-brand-tertiary/75'}`}
+              >
+                <Sparkles className="w-5 h-5" />
+                <span className="text-[9px] font-bold mt-1 uppercase">Serviços</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('financeiro')}
+                className={`flex flex-col items-center p-2 rounded-lg ${activeTab === 'financeiro' ? 'text-brand-primary' : 'text-brand-tertiary/75'}`}
+              >
+                <DollarSign className="w-5 h-5" />
+                <span className="text-[9px] font-bold mt-1 uppercase">Caixa</span>
+              </button>
+            </>
+          )}
         </div>
 
         {/* VIEW AREA */}
@@ -1003,11 +1124,12 @@ export default function PortalDashboard({
                               </div>
                             ) : (
                               hourBookings.map(book => (
-                                <div 
+                                <div
                                   key={book.id}
-                                  className={`flex flex-col lg:flex-row justify-between p-5 rounded-2xl border transition-all ${
-                                    book.status === 'pendente' 
-                                      ? 'border-dashed border-brand-primary bg-brand-primary-light/5' 
+                                  onClick={() => setSelectedBooking(book)}
+                                  className={`flex flex-col lg:flex-row justify-between p-5 rounded-2xl border transition-all cursor-pointer hover:scale-[1.005] ${
+                                    book.status === 'pendente'
+                                      ? 'border-dashed border-brand-primary bg-brand-primary-light/5'
                                       : book.status === 'confirmado'
                                         ? 'border-brand-primary-light/25 bg-[#faf9f8]'
                                         : book.status === 'finalizado'
@@ -1043,7 +1165,7 @@ export default function PortalDashboard({
                                   </div>
 
                                   {/* Buttons action list */}
-                                  <div className="flex flex-wrap items-center gap-2 mt-4 lg:mt-0">
+                                  <div className="flex flex-wrap items-center gap-2 mt-4 lg:mt-0" onClick={(e) => e.stopPropagation()}>
                                     {book.status === 'pendente' && (
                                       <>
                                         <button 
@@ -1172,9 +1294,8 @@ export default function PortalDashboard({
                                           : 'border-red-100 bg-[#fbfbfb] opacity-60'
                                   }`}
                                   onClick={(e) => {
-                                    // Prevent selecting day state when clicking buttons
                                     e.stopPropagation();
-                                    setAgendaDate(dayStr);
+                                    setSelectedBooking(book);
                                   }}
                                 >
                                   {/* Title & mark */}
@@ -1362,9 +1483,10 @@ export default function PortalDashboard({
                         }
 
                         return selectedDayBookings.map((book) => (
-                          <div 
+                          <div
                             key={book.id}
-                            className={`p-4 rounded-xl border text-left space-y-3 ${
+                            onClick={() => setSelectedBooking(book)}
+                            className={`p-4 rounded-xl border text-left space-y-3 cursor-pointer hover:shadow transition-shadow ${
                               book.status === 'pendente' 
                                 ? 'border-[#d6c2c4] bg-[#faf9f8]' 
                                 : book.status === 'confirmado'
@@ -1468,20 +1590,37 @@ export default function PortalDashboard({
                   >
                     {/* Inline action triggers */}
                     <div className="absolute top-4 right-4 flex gap-1.5 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button 
+                      <button
+                        onClick={() => handleResetPassword(spec)}
+                        className="w-7 h-7 bg-[#faf9f8] border border-[#d6c2c4]/40 hover:bg-brand-secondary hover:text-white rounded-full flex items-center justify-center cursor-pointer shadow-sm transition-colors"
+                        title="Resetar senha"
+                      >
+                        <KeyRound className="w-3.5 h-3.5" />
+                      </button>
+                      <button
                         onClick={() => handleEditSpecialist(spec)}
                         className="w-7 h-7 bg-[#faf9f8] border border-[#d6c2c4]/40 hover:bg-brand-primary hover:text-white rounded-full flex items-center justify-center cursor-pointer shadow-sm transition-colors"
                         title="Editar"
                       >
                         <Edit className="w-3.5 h-3.5" />
                       </button>
-                      <button 
+                      <button
                         onClick={() => handleDeleteSpecialist(spec.id)}
                         className="w-7 h-7 bg-red-50 border border-red-200/50 text-red-600 hover:bg-red-600 hover:text-white rounded-full flex items-center justify-center cursor-pointer shadow-sm transition-colors"
                         title="Remover Profissional"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
+                    </div>
+
+                    {/* Role / login status badges */}
+                    <div className="absolute top-4 left-4 flex gap-1.5">
+                      {spec.roleType === 'admin' && (
+                        <span className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-brand-primary text-white rounded-full">Admin</span>
+                      )}
+                      {!spec.username && (
+                        <span className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200 rounded-full">Sem login</span>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-4 mb-4">
@@ -1550,6 +1689,46 @@ export default function PortalDashboard({
                 </div>
               </div>
 
+              {/* Period filter */}
+              <div className="bg-white border border-brand-primary-light/25 rounded-2xl p-4 flex flex-col md:flex-row md:items-center gap-3">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-brand-tertiary">Período</label>
+                <select
+                  value={periodKey}
+                  onChange={(e) => setPeriodKey(e.target.value as PeriodKey)}
+                  className="bg-[#faf9f8] border border-[#d6c2c4]/50 rounded-xl px-3 py-2 text-sm font-sans text-brand-dark outline-none focus:border-brand-primary"
+                >
+                  <option value="thisMonth">Este mês</option>
+                  <option value="lastMonth">Mês passado</option>
+                  <option value="last30">Últimos 30 dias</option>
+                  <option value="thisYear">Este ano</option>
+                  <option value="custom">Personalizado</option>
+                </select>
+                {periodKey === 'custom' && (
+                  <>
+                    <input
+                      type="date"
+                      value={customStart}
+                      onChange={(e) => setCustomStart(e.target.value)}
+                      className="bg-[#faf9f8] border border-[#d6c2c4]/50 rounded-xl px-3 py-2 text-sm"
+                    />
+                    <span className="text-brand-tertiary text-sm">até</span>
+                    <input
+                      type="date"
+                      value={customEnd}
+                      onChange={(e) => setCustomEnd(e.target.value)}
+                      className="bg-[#faf9f8] border border-[#d6c2c4]/50 rounded-xl px-3 py-2 text-sm"
+                    />
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={() => { setPeriodKey('thisMonth'); setCustomStart(''); setCustomEnd(''); }}
+                  className="ml-auto text-[11px] font-bold uppercase tracking-wider text-brand-primary hover:underline"
+                >
+                  Limpar filtro
+                </button>
+              </div>
+
               {/* Stats Cards Row */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 {/* Entradas */}
@@ -1592,7 +1771,7 @@ export default function PortalDashboard({
               {/* Transactions History Table */}
               <div className="bg-white border border-[#d6c2c4]/20 rounded-2xl overflow-hidden shadow-sm">
                 <div className="p-5 border-b border-brand-primary-light/10 flex justify-between items-center">
-                  <h3 className="font-sans font-bold text-base text-brand-dark">Histórico de Lançamentos ({transactions.length})</h3>
+                  <h3 className="font-sans font-bold text-base text-brand-dark">Histórico de Lançamentos ({filteredTransactions.length})</h3>
                   <button onClick={() => setActiveTab('relatorio_detalhado')} className="text-xs text-brand-primary font-bold hover:underline flex items-center gap-1">
                     <Printer className="w-3.5 h-3.5" /> Detalhar Relatório
                   </button>
@@ -1609,7 +1788,7 @@ export default function PortalDashboard({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-brand-primary-light/10">
-                      {transactions.map(t => (
+                      {filteredTransactions.map(t => (
                         <tr key={t.id} className="hover:bg-[#faf9f8] text-xs transition-colors">
                           <td className="p-4 font-sans font-bold text-brand-dark">
                             {t.description}
@@ -1653,6 +1832,48 @@ export default function PortalDashboard({
                 </button>
               </div>
 
+              <div className="no-print">
+                {/* Period filter — mesma estrutura da aba Financeiro */}
+                <div className="bg-white border border-brand-primary-light/25 rounded-2xl p-4 flex flex-col md:flex-row md:items-center gap-3">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-brand-tertiary">Período</label>
+                  <select
+                    value={periodKey}
+                    onChange={(e) => setPeriodKey(e.target.value as PeriodKey)}
+                    className="bg-[#faf9f8] border border-[#d6c2c4]/50 rounded-xl px-3 py-2 text-sm font-sans text-brand-dark outline-none focus:border-brand-primary"
+                  >
+                    <option value="thisMonth">Este mês</option>
+                    <option value="lastMonth">Mês passado</option>
+                    <option value="last30">Últimos 30 dias</option>
+                    <option value="thisYear">Este ano</option>
+                    <option value="custom">Personalizado</option>
+                  </select>
+                  {periodKey === 'custom' && (
+                    <>
+                      <input
+                        type="date"
+                        value={customStart}
+                        onChange={(e) => setCustomStart(e.target.value)}
+                        className="bg-[#faf9f8] border border-[#d6c2c4]/50 rounded-xl px-3 py-2 text-sm"
+                      />
+                      <span className="text-brand-tertiary text-sm">até</span>
+                      <input
+                        type="date"
+                        value={customEnd}
+                        onChange={(e) => setCustomEnd(e.target.value)}
+                        className="bg-[#faf9f8] border border-[#d6c2c4]/50 rounded-xl px-3 py-2 text-sm"
+                      />
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => { setPeriodKey('thisMonth'); setCustomStart(''); setCustomEnd(''); }}
+                    className="ml-auto text-[11px] font-bold uppercase tracking-wider text-brand-primary hover:underline"
+                  >
+                    Limpar filtro
+                  </button>
+                </div>
+              </div>
+
               {/* PRINT ELEMENT CONTROLLER CONTAINER */}
               <div className="bg-white p-8 border border-[#d6c2c4]/30 rounded-2xl shadow-sm space-y-6">
                 {/* Invoice Letterhead */}
@@ -1663,7 +1884,7 @@ export default function PortalDashboard({
                   </div>
                   <div className="text-right">
                     <span className="font-sans text-[10px] font-bold text-brand-secondary uppercase tracking-widest">Demonstrativo de Caixa</span>
-                    <p className="text-xs text-brand-dark font-sans mt-1">Período: 01 Out - 31 Out, 2026</p>
+                    <p className="text-xs text-brand-dark font-sans mt-1">Período: {activeRange.start.split('-').reverse().join('/')} – {activeRange.end.split('-').reverse().join('/')}</p>
                   </div>
                 </div>
 
@@ -1684,7 +1905,8 @@ export default function PortalDashboard({
                 </div>
 
                 {/* Specialists Commission calculations */}
-                <div className="border border-brand-primary-light/20 rounded-xl overflow-hidden mt-6">
+                <p className="text-[10px] text-brand-tertiary italic mt-6 mb-1">Comissões refletem o acumulado da equipe (não filtrado pelo período acima).</p>
+                <div className="border border-brand-primary-light/20 rounded-xl overflow-hidden">
                   <table className="w-full text-left">
                     <thead>
                       <tr className="bg-[#faf9f8] text-xs font-bold text-brand-tertiary">
@@ -1970,6 +2192,48 @@ export default function PortalDashboard({
                     </div>
                   </div>
 
+                  {/* Login credentials (admin only sees this view) */}
+                  <div className="bg-white p-6 border border-brand-primary-light/35 rounded-2xl shadow-sm space-y-4">
+                    <span className="font-sans text-[11px] font-bold tracking-widest text-brand-primary block uppercase">Credenciais de Acesso</span>
+                    <div className="bg-brand-primary-light/10 border border-brand-primary-light/40 rounded-xl p-3 text-[11px] text-brand-dark leading-snug">
+                      <strong>Como a profissional faz login:</strong> defina <strong>Usuário</strong> e <strong>Nova senha</strong> abaixo e compartilhe com ela. Ela entra em <code className="font-mono bg-white px-1 rounded">/admin</code> com essas credenciais e verá apenas a própria agenda. Para criar outro administrador, mude <strong>Permissão</strong> para <em>Administrador</em>.
+                    </div>
+                    <p className="text-[11px] text-brand-tertiary">Ao editar uma profissional existente, deixe a senha em branco para mantê-la.</p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="space-y-1">
+                        <label className="font-sans text-[11px] font-bold uppercase tracking-widest text-[#847375] block ml-1">Usuário</label>
+                        <input
+                          type="text"
+                          value={specUsername}
+                          onChange={(e) => setSpecUsername(e.target.value)}
+                          className="w-full bg-[#faf9f8] border border-[#d6c2c4]/50 rounded-xl px-4 py-3 text-sm focus:border-brand-primary focus:ring-1 focus:ring-brand-primary outline-none"
+                          placeholder="ex: gabriela"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="font-sans text-[11px] font-bold uppercase tracking-widest text-[#847375] block ml-1">Nova senha</label>
+                        <input
+                          type="password"
+                          value={specNewPassword}
+                          onChange={(e) => setSpecNewPassword(e.target.value)}
+                          className="w-full bg-[#faf9f8] border border-[#d6c2c4]/50 rounded-xl px-4 py-3 text-sm focus:border-brand-primary focus:ring-1 focus:ring-brand-primary outline-none"
+                          placeholder={isNewSpec ? 'Senha inicial' : '(manter)'}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="font-sans text-[11px] font-bold uppercase tracking-widest text-[#847375] block ml-1">Permissão</label>
+                        <select
+                          value={specRoleType}
+                          onChange={(e) => setSpecRoleType(e.target.value as 'admin' | 'professional')}
+                          className="w-full bg-[#faf9f8] border border-[#d6c2c4]/50 rounded-xl px-4 py-3 text-sm focus:border-brand-primary focus:ring-1 focus:ring-brand-primary outline-none"
+                        >
+                          <option value="professional">Profissional</option>
+                          <option value="admin">Administrador</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Performed services card list */}
                   <div className="bg-white p-6 border border-brand-primary-light/35 rounded-2xl shadow-sm space-y-4">
                     <span className="font-sans text-[11px] font-bold tracking-widest text-brand-primary block uppercase">Serviços Habilitados</span>
@@ -2250,6 +2514,15 @@ export default function PortalDashboard({
         </section>
 
       </div>
+
+      <BookingDetailsModal
+        booking={selectedBooking}
+        onClose={() => setSelectedBooking(null)}
+        onConfirm={(b) => { handleConfirmAndSendWhatsapp(b); }}
+        onFinalize={(b) => { handleFinalizeBooking(b.id); }}
+        onCancel={(b) => { handleUpdateBookingStatus(b.id, 'cancelado'); setSelectedBooking(null); }}
+        roleType={currentUser.roleType}
+      />
 
       {/* Supabase Setup Modal */}
       {showDbModal && (
