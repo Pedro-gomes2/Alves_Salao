@@ -256,3 +256,53 @@ export async function insertTransaction(transaction: Transaction): Promise<Trans
   transactionsMem.unshift(transaction);
   return transaction;
 }
+
+export async function updateTransaction(
+  id: string,
+  patch: Partial<Transaction>
+): Promise<{ data: Transaction | null; error: { code?: string; message: string } | null }> {
+  if (supabaseClient) {
+    try {
+      const { data, error } = await supabaseClient
+        .from('transactions')
+        .update(patch)
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) {
+        console.warn('Supabase transaction update failed:', error);
+        return { data: null, error: { code: (error as any).code, message: error.message } };
+      }
+      const idx = transactionsMem.findIndex(t => t.id === id);
+      if (idx >= 0) transactionsMem[idx] = data as Transaction;
+      return { data: data as Transaction, error: null };
+    } catch (e: any) {
+      return { data: null, error: { message: e?.message || 'unknown error' } };
+    }
+  }
+  const idx = transactionsMem.findIndex(t => t.id === id);
+  if (idx < 0) return { data: null, error: { message: 'not found' } };
+  transactionsMem[idx] = { ...transactionsMem[idx], ...patch };
+  return { data: transactionsMem[idx], error: null };
+}
+
+export async function deleteTransaction(
+  id: string
+): Promise<{ success: boolean; error: { code?: string; message: string } | null }> {
+  if (supabaseClient) {
+    try {
+      const { error } = await supabaseClient.from('transactions').delete().eq('id', id);
+      if (error) {
+        console.warn('Supabase transaction delete failed:', error);
+        return { success: false, error: { code: (error as any).code, message: error.message } };
+      }
+      transactionsMem = transactionsMem.filter(t => t.id !== id);
+      return { success: true, error: null };
+    } catch (e: any) {
+      return { success: false, error: { message: e?.message || 'unknown error' } };
+    }
+  }
+  const before = transactionsMem.length;
+  transactionsMem = transactionsMem.filter(t => t.id !== id);
+  return { success: transactionsMem.length < before, error: null };
+}

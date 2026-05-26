@@ -18,7 +18,9 @@ import {
   insertBooking,
   updateBookingStatus,
   getTransactions,
-  insertTransaction
+  insertTransaction,
+  updateTransaction,
+  deleteTransaction
 } from './supabase';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-secret-change-me';
@@ -304,6 +306,29 @@ async function startServer() {
     }
     const saved = await insertTransaction(trans);
     res.json(saved);
+  });
+
+  app.patch('/api/transactions/:id', requireAdmin, async (req, res) => {
+    const id = req.params.id;
+    const { id: _ignored, ...patch } = req.body || {};
+    const { data, error } = await updateTransaction(id, patch);
+    if (error) {
+      console.error('Failed to update transaction:', error);
+      return res.status(500).json({ error: 'Não foi possível atualizar o lançamento.' });
+    }
+    if (!data) return res.status(404).json({ error: 'Lançamento não encontrado.' });
+    res.json(data);
+  });
+
+  app.delete('/api/transactions/:id', requireAdmin, async (req, res) => {
+    const id = req.params.id;
+    const { success, error } = await deleteTransaction(id);
+    if (error) {
+      console.error('Failed to delete transaction:', error);
+      return res.status(500).json({ error: 'Não foi possível excluir o lançamento.' });
+    }
+    if (!success) return res.status(404).json({ error: 'Lançamento não encontrado.' });
+    res.json({ success: true, id });
   });
 
   // Serve static assets and Vite server integration
