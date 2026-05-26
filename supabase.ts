@@ -3,15 +3,21 @@ import { Specialist, Service, Booking, Transaction } from './src/types';
 import { INITIAL_SPECIALISTS, INITIAL_SERVICES, INITIAL_BOOKINGS, INITIAL_TRANSACTIONS } from './src/data';
 
 const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+const supabaseKey = supabaseServiceKey || supabaseAnonKey;
 
-export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
+export const isSupabaseConfigured = !!(supabaseUrl && supabaseKey);
 
 let supabaseClient: any = null;
 if (isSupabaseConfigured) {
   try {
-    supabaseClient = createClient(supabaseUrl!, supabaseAnonKey!);
-    console.log('Supabase client initialized successfully.');
+    supabaseClient = createClient(supabaseUrl!, supabaseKey!);
+    const mode = supabaseServiceKey ? 'service_role (bypasses RLS)' : 'anon (RLS enforced — writes may fail)';
+    console.log(`Supabase client initialized successfully. Auth mode: ${mode}.`);
+    if (!supabaseServiceKey) {
+      console.warn('SUPABASE_SERVICE_ROLE_KEY not set — admin writes to specialists/services/transactions will fail under RLS.');
+    }
   } catch (error) {
     console.error('Failed to initialize Supabase client:', error);
   }
