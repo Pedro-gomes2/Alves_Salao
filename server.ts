@@ -146,18 +146,24 @@ async function startServer() {
   });
 
   app.post('/api/specialists', requireAdmin, async (req, res) => {
-    const spec: Specialist = req.body;
+    const { newPassword, ...rest } = req.body || {};
+    const spec: Specialist = { ...rest };
     if (!spec.id) {
       spec.id = 'spec-' + Date.now();
     }
-    // If admin sent a new plaintext password, hash it. Field name: newPassword.
-    const newPassword = (req.body as any).newPassword;
-    if (newPassword && typeof newPassword === 'string' && newPassword.length > 0) {
+    if (typeof newPassword === 'string' && newPassword.length > 0) {
       spec.passwordHash = await bcrypt.hash(newPassword, 10);
     }
     if (!spec.roleType) spec.roleType = 'professional';
-    const saved = await upsertSpecialist(spec);
-    // Never leak the hash back to clients
+
+    const { data: saved, error } = await upsertSpecialist(spec);
+    if (error) {
+      // Postgres unique violation code is '23505'
+      if (error.code === '23505' || /duplicate key|unique/i.test(error.message)) {
+        return res.status(409).json({ error: 'Já existe um profissional com esse usuário.' });
+      }
+      return res.status(500).json({ error: 'Não foi possível salvar: ' + error.message });
+    }
     if (saved && (saved as any).passwordHash) delete (saved as any).passwordHash;
     res.json(saved);
   });
@@ -229,7 +235,7 @@ async function startServer() {
       if (specIndex >= 0) {
         const spec = specialists[specIndex];
         spec.attendanceCount += 1;
-        await upsertSpecialist(spec);
+        await upsertSpecialist(spec); // attendanceCount bump; error tolerated
       }
     }
 
@@ -266,7 +272,7 @@ async function startServer() {
         if (specIndex >= 0) {
           const spec = specialists[specIndex];
           spec.attendanceCount += 1;
-          await upsertSpecialist(spec);
+          await upsertSpecialist(spec); // attendanceCount bump; error tolerated
         }
       }
       res.json(updated || booking);

@@ -124,23 +124,33 @@ export async function getSpecialists(): Promise<Specialist[]> {
   return specialistsMem;
 }
 
-export async function upsertSpecialist(specialist: Specialist): Promise<Specialist> {
+export async function upsertSpecialist(
+  specialist: Specialist
+): Promise<{ data: Specialist; error: { code?: string; message: string } | null }> {
   if (supabaseClient) {
     try {
-      const { data, error } = await supabaseClient.from('specialists').upsert(specialist).select().single();
-      if (!error && data) return data as Specialist;
-      console.warn('Supabase specialist upsert failed, falling back to memory:', error);
-    } catch (e) {
+      const { data, error } = await supabaseClient
+        .from('specialists')
+        .upsert(specialist)
+        .select()
+        .single();
+      if (error) {
+        console.warn('Supabase specialist upsert failed:', error);
+        return { data: specialist, error: { code: (error as any).code, message: error.message } };
+      }
+      // mirror to memory so reads stay consistent if Supabase later fails
+      const idx = specialistsMem.findIndex(s => s.id === (data as Specialist).id);
+      if (idx >= 0) specialistsMem[idx] = data as Specialist; else specialistsMem.push(data as Specialist);
+      return { data: data as Specialist, error: null };
+    } catch (e: any) {
       console.warn('Supabase specialist upsert error:', e);
+      return { data: specialist, error: { message: e?.message || 'unknown error' } };
     }
   }
+  // memory-only mode
   const idx = specialistsMem.findIndex(s => s.id === specialist.id);
-  if (idx >= 0) {
-    specialistsMem[idx] = specialist;
-  } else {
-    specialistsMem.push(specialist);
-  }
-  return specialist;
+  if (idx >= 0) specialistsMem[idx] = specialist; else specialistsMem.push(specialist);
+  return { data: specialist, error: null };
 }
 
 export async function getSpecialistByUsername(username: string): Promise<Specialist | null> {
