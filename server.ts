@@ -286,11 +286,15 @@ async function startServer() {
 
   // 4. TRANSACTIONS
   app.get('/api/transactions', tryAuth, async (req: AuthedRequest, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Não autenticado' });
     const transactions = await getTransactions();
-    if (req.user && req.user.roleType === 'professional') {
+    if (req.user.roleType === 'professional') {
       return res.json(transactions.filter(t => t.specialistId === req.user!.id));
     }
-    res.json(transactions);
+    if (req.user.roleType === 'admin') {
+      return res.json(transactions);
+    }
+    return res.status(403).json({ error: 'Acesso restrito' });
   });
 
   app.post('/api/transactions', requireAdmin, async (req, res) => {
