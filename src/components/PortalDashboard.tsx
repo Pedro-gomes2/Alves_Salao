@@ -429,13 +429,17 @@ export default function PortalDashboard({
         headers: authHeaders(),
         body: JSON.stringify(payload)
       });
+      const data = await response.json().catch(() => ({}));
       if (response.ok) {
         onRefreshData();
         setActiveTab('equipe');
         showToast(isNewSpec ? 'Nova profissional adicionada!' : 'Configurações de profissional salvas!');
+      } else {
+        showToast(data.error || 'Erro ao salvar profissional.');
       }
     } catch (err) {
       console.error(err);
+      showToast('Erro ao conectar com o servidor.');
     }
   };
 
@@ -475,11 +479,12 @@ export default function PortalDashboard({
         headers: authHeaders(),
         body: JSON.stringify(payload),
       });
+      const data = await response.json().catch(() => ({}));
       if (response.ok) {
         onRefreshData();
         showToast(`Senha de ${spec.name} atualizada!`);
       } else {
-        showToast('Erro ao resetar senha.');
+        showToast(data.error || 'Erro ao resetar senha.');
       }
     } catch (err) {
       console.error(err);
