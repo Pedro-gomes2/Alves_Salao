@@ -659,6 +659,18 @@ export default function PortalDashboard({
               <span>Agenda</span>
             </button>
 
+            <button
+              onClick={() => { setActiveTab('financeiro'); setIsDrawerOpen(false); }}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl font-sans text-sm font-bold text-left transition-all ${
+                activeTab === 'financeiro'
+                  ? 'bg-brand-primary-light/30 text-brand-primary'
+                  : 'text-brand-tertiary hover:bg-[#faf9f8]'
+              }`}
+            >
+              <DollarSign className="w-4 h-4" />
+              <span>{isAdmin ? 'Financeiro' : 'Meu Financeiro'}</span>
+            </button>
+
             {isAdmin && (
               <>
                 <button
@@ -671,18 +683,6 @@ export default function PortalDashboard({
                 >
                   <Users className="w-4 h-4" />
                   <span>Equipe</span>
-                </button>
-
-                <button
-                  onClick={() => { setActiveTab('financeiro'); setIsDrawerOpen(false); }}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl font-sans text-sm font-bold text-left transition-all ${
-                    activeTab === 'financeiro'
-                      ? 'bg-brand-primary-light/30 text-brand-primary'
-                      : 'text-brand-tertiary hover:bg-[#faf9f8]'
-                  }`}
-                >
-                  <DollarSign className="w-4 h-4" />
-                  <span>Financeiro</span>
                 </button>
 
                 <button
@@ -729,6 +729,13 @@ export default function PortalDashboard({
             <Calendar className="w-5 h-5" />
             <span className="text-[9px] font-bold mt-1 uppercase">Agenda</span>
           </button>
+          <button
+            onClick={() => setActiveTab('financeiro')}
+            className={`flex flex-col items-center p-2 rounded-lg ${activeTab === 'financeiro' ? 'text-brand-primary' : 'text-brand-tertiary/75'}`}
+          >
+            <DollarSign className="w-5 h-5" />
+            <span className="text-[9px] font-bold mt-1 uppercase">{isAdmin ? 'Caixa' : 'Meu Caixa'}</span>
+          </button>
           {isAdmin && (
             <>
               <button
@@ -744,13 +751,6 @@ export default function PortalDashboard({
               >
                 <Sparkles className="w-5 h-5" />
                 <span className="text-[9px] font-bold mt-1 uppercase">Serviços</span>
-              </button>
-              <button
-                onClick={() => setActiveTab('financeiro')}
-                className={`flex flex-col items-center p-2 rounded-lg ${activeTab === 'financeiro' ? 'text-brand-primary' : 'text-brand-tertiary/75'}`}
-              >
-                <DollarSign className="w-5 h-5" />
-                <span className="text-[9px] font-bold mt-1 uppercase">Caixa</span>
               </button>
             </>
           )}
