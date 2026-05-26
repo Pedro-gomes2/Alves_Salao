@@ -204,7 +204,6 @@ export default function App() {
                   bookings={bookings}
                   transactions={transactions}
                   onRefreshData={fetchData}
-                  onGoToBooking={() => navigate('agendar')}
                   dbStatus={dbStatus}
                   salonWhatsapp={salonWhatsapp}
                   onChangeSalonWhatsapp={setSalonWhatsapp}

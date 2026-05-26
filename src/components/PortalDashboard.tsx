@@ -69,7 +69,6 @@ interface PortalDashboardProps {
   bookings: Booking[];
   transactions: Transaction[];
   onRefreshData: () => void;
-  onGoToBooking: () => void;
   dbStatus?: { configured: boolean; mode: string };
   salonWhatsapp?: string;
   onChangeSalonWhatsapp?: (num: string) => void;
@@ -85,7 +84,6 @@ export default function PortalDashboard({
   bookings, 
   transactions, 
   onRefreshData,
-  onGoToBooking,
   dbStatus = { configured: false, mode: 'local_memory' },
   salonWhatsapp = '5511999999999',
   onChangeSalonWhatsapp,
@@ -1907,7 +1905,8 @@ export default function PortalDashboard({
                 </div>
 
                 {/* Specialists Commission calculations */}
-                <div className="border border-brand-primary-light/20 rounded-xl overflow-hidden mt-6">
+                <p className="text-[10px] text-brand-tertiary italic mt-6 mb-1">Comissões refletem o acumulado da equipe (não filtrado pelo período acima).</p>
+                <div className="border border-brand-primary-light/20 rounded-xl overflow-hidden">
                   <table className="w-full text-left">
                     <thead>
                       <tr className="bg-[#faf9f8] text-xs font-bold text-brand-tertiary">
