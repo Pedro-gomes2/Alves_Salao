@@ -37,7 +37,7 @@ type PeriodKey = 'thisMonth' | 'lastMonth' | 'last30' | 'thisYear' | 'custom';
 
 function periodRange(key: PeriodKey, customStart: string, customEnd: string, todayISO: string): { start: string; end: string } {
   const today = new Date(todayISO + 'T00:00:00');
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   if (key === 'thisMonth') {
     const start = new Date(today.getFullYear(), today.getMonth(), 1);
     const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
