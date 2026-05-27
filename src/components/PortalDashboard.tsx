@@ -154,7 +154,10 @@ export default function PortalDashboard({
   const [scheduleDraft, setScheduleDraft] = useState<WeeklySchedule | null>(null);
   const [scheduleSaving, setScheduleSaving] = useState(false);
   const [agendaView, setAgendaView] = useState<'diario' | 'semanal' | 'mensal'>('diario');
-  const [agendaDate, setAgendaDate] = useState<string>('2026-05-22');
+  const [agendaDate, setAgendaDate] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
   const [selectedSpecialistId, setSelectedSpecialistId] = useState<string>('all');
 
   const getDaysOfWeek = (centerDateStr: string): string[] => {
@@ -1875,6 +1878,26 @@ export default function PortalDashboard({
                     monday: 'Segunda', tuesday: 'Terça', wednesday: 'Quarta',
                     thursday: 'Quinta', friday: 'Sexta', saturday: 'Sábado', sunday: 'Domingo',
                   };
+                  const DOW_INDEX: Record<WeekDay, number> = {
+                    sunday: 0, monday: 1, tuesday: 2, wednesday: 3,
+                    thursday: 4, friday: 5, saturday: 6,
+                  };
+                  // Next occurrence of this weekday (today if today matches, else next 1-7 days)
+                  const today = new Date(todayStr + 'T00:00:00');
+                  const offset = (DOW_INDEX[dayKey] - today.getDay() + 7) % 7;
+                  const nextDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() + offset);
+                  const nextDateISO = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}-${String(nextDate.getDate()).padStart(2, '0')}`;
+                  const dayBookings = bookings.filter(b => b.date === nextDateISO && b.status !== 'cancelado');
+                  const bookedSlotsOnNext = new Set<string>();
+                  dayBookings.forEach(b => {
+                    const [h, m] = b.time.split(':').map(Number);
+                    let cursor = h * 60 + m;
+                    const end = cursor + (b.totalDuration || 30);
+                    while (cursor < end) {
+                      bookedSlotsOnNext.add(`${String(Math.floor(cursor / 60)).padStart(2, '0')}:${String(cursor % 60).padStart(2, '0')}`);
+                      cursor += 30;
+                    }
+                  });
                   const openSet = new Set(scheduleDraft?.[dayKey] ?? []);
                   const toggle = (slot: string) => setScheduleDraft(prev => {
                     if (!prev) return prev;
@@ -1884,23 +1907,37 @@ export default function PortalDashboard({
                   });
                   return (
                     <div key={dayKey} className="bg-white border border-brand-primary-light/25 rounded-2xl p-4 shadow-sm">
-                      <div className="flex items-center justify-between mb-3">
-                        <h3 className="font-sans font-bold text-sm text-brand-dark">{labels[dayKey]}</h3>
-                        <span className="text-[10px] text-brand-tertiary">{openSet.size} horários</span>
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <h3 className="font-sans font-bold text-sm text-brand-dark">{labels[dayKey]}</h3>
+                          <span className="text-[9px] text-brand-tertiary block">Próxima: {nextDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}{offset === 0 ? ' (hoje)' : ''}</span>
+                        </div>
+                        <span className="text-[10px] text-brand-tertiary">{openSet.size} hor.</span>
                       </div>
+                      {dayBookings.length > 0 && (
+                        <div className="mb-3 bg-amber-50/60 border border-amber-200/50 rounded-lg p-2 text-[10px] text-amber-900">
+                          <div className="font-bold mb-0.5">{dayBookings.length} agendamento{dayBookings.length > 1 ? 's' : ''} nesse dia:</div>
+                          {dayBookings.slice(0, 3).map(b => (
+                            <div key={b.id}>• {b.time} — {b.userName}</div>
+                          ))}
+                          {dayBookings.length > 3 && <div className="italic">+ {dayBookings.length - 3} mais...</div>}
+                        </div>
+                      )}
                       <div className="grid grid-cols-3 gap-1.5 mb-3">
                         {ALL_POSSIBLE_SLOTS.map(slot => {
                           const isOpen = openSet.has(slot);
+                          const isBooked = bookedSlotsOnNext.has(slot);
                           return (
                             <button
                               key={slot}
                               type="button"
                               onClick={() => toggle(slot)}
-                              className={`text-[11px] font-mono py-1 rounded transition-all ${
+                              title={isBooked ? 'Já há um agendamento nesse horário na próxima ocorrência' : undefined}
+                              className={`text-[11px] font-mono py-1 rounded transition-all relative ${
                                 isOpen
                                   ? 'bg-brand-primary text-white shadow-sm'
                                   : 'bg-[#faf9f8] text-brand-tertiary hover:bg-brand-primary-light/30 hover:text-brand-primary'
-                              }`}
+                              } ${isBooked ? 'ring-2 ring-amber-400' : ''}`}
                             >
                               {slot}
                             </button>
