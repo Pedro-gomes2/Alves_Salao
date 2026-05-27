@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Specialist, Service, Booking, Transaction, AuthUser } from '../types';
+import { Specialist, Service, Booking, Transaction, AuthUser, WeeklySchedule, WeekDay, DEFAULT_WEEKLY_SCHEDULE } from '../types';
 import BookingDetailsModal from './BookingDetailsModal';
 import { 
   LayoutDashboard, 
@@ -77,7 +77,7 @@ interface PortalDashboardProps {
   authToken: string;
 }
 
-type AdminTab = 'dashboard' | 'agenda' | 'equipe' | 'financeiro' | 'relatorio_detalhado' | 'nova_operacao' | 'config_especialist' | 'servicos' | 'config_servico';
+type AdminTab = 'dashboard' | 'agenda' | 'minha_agenda' | 'equipe' | 'financeiro' | 'relatorio_detalhado' | 'nova_operacao' | 'config_especialist' | 'servicos' | 'config_servico';
 
 export default function PortalDashboard({ 
   specialists, 
@@ -133,6 +133,8 @@ export default function PortalDashboard({
   const [customEnd, setCustomEnd] = useState('');
 
   // Agenda interactive views states
+  const [scheduleDraft, setScheduleDraft] = useState<WeeklySchedule | null>(null);
+  const [scheduleSaving, setScheduleSaving] = useState(false);
   const [agendaView, setAgendaView] = useState<'diario' | 'semanal' | 'mensal'>('diario');
   const [agendaDate, setAgendaDate] = useState<string>('2026-05-22');
   const [selectedSpecialistId, setSelectedSpecialistId] = useState<string>('all');
@@ -329,6 +331,28 @@ export default function PortalDashboard({
   const netProfit = totalRevenue - totalExpenses;
 
   const currentSpec = !isAdmin ? specialists.find(s => s.id === currentUser.id) : undefined;
+
+  useEffect(() => {
+    if (currentSpec && !scheduleDraft) {
+      setScheduleDraft(currentSpec.weeklySchedule ?? DEFAULT_WEEKLY_SCHEDULE);
+    }
+  }, [currentSpec]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const isScheduleValid = (sched: WeeklySchedule | null): boolean => {
+    if (!sched) return false;
+    for (const k of Object.keys(sched) as WeekDay[]) {
+      const ranges = sched[k];
+      for (const r of ranges) {
+        if (!r.start || !r.end || r.start >= r.end) return false;
+      }
+      const sorted = [...ranges].sort((a, b) => a.start.localeCompare(b.start));
+      for (let i = 0; i < sorted.length - 1; i++) {
+        if (sorted[i].end > sorted[i + 1].start) return false;
+      }
+    }
+    return true;
+  };
+
   const mySpecialistId = currentUser.id;
   const myCommissionPct = currentSpec?.commission ?? 0;
   const myGenerated = filteredTransactions
@@ -732,7 +756,21 @@ export default function PortalDashboard({
               <span>Dashboard</span>
             </button>
 
-            <button 
+            {!isAdmin && (
+              <button
+                onClick={() => { setActiveTab('minha_agenda'); setIsDrawerOpen(false); }}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl font-sans text-sm font-bold text-left transition-all ${
+                  activeTab === 'minha_agenda'
+                    ? 'bg-brand-primary-light/30 text-brand-primary'
+                    : 'text-brand-tertiary hover:bg-[#faf9f8]'
+                }`}
+              >
+                <Calendar className="w-4 h-4" />
+                <span>Minha Agenda</span>
+              </button>
+            )}
+
+            <button
               onClick={() => { setActiveTab('agenda'); setIsDrawerOpen(false); }}
               className={`flex items-center gap-3 px-4 py-3 rounded-xl font-sans text-sm font-bold text-left transition-all ${
                 activeTab === 'agenda' 
@@ -1751,6 +1789,128 @@ export default function PortalDashboard({
                 </div>
 
               </div>
+            </div>
+          )}
+
+          {activeTab === 'minha_agenda' && !isAdmin && (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                <div>
+                  <span className="font-sans text-[11px] font-semibold text-brand-primary tracking-widest uppercase font-bold">Configuração</span>
+                  <h2 className="font-display text-3xl text-brand-dark">Minha Agenda Semanal</h2>
+                  <p className="text-brand-tertiary text-sm">Defina os dias e horários em que você atende. Domingos e folgas ficam vazios.</p>
+                </div>
+                <button
+                  type="button"
+                  disabled={!isScheduleValid(scheduleDraft) || scheduleSaving}
+                  onClick={async () => {
+                    if (!scheduleDraft) return;
+                    setScheduleSaving(true);
+                    try {
+                      const res = await fetch('/api/specialists/me/schedule', {
+                        method: 'PUT',
+                        headers: authHeaders(),
+                        body: JSON.stringify({ weeklySchedule: scheduleDraft }),
+                      });
+                      const data = await res.json().catch(() => ({}));
+                      if (res.ok) {
+                        onRefreshData();
+                        showToast('Agenda salva!');
+                      } else {
+                        showToast(data.error || 'Erro ao salvar agenda.');
+                      }
+                    } catch (e) {
+                      console.error(e);
+                      showToast('Erro ao conectar com o servidor.');
+                    } finally {
+                      setScheduleSaving(false);
+                    }
+                  }}
+                  className="bg-brand-primary text-white hover:bg-brand-primary-light hover:text-brand-primary py-3 px-6 rounded-full font-bold text-xs uppercase tracking-wider shadow-lg disabled:opacity-50"
+                >
+                  {scheduleSaving ? 'Salvando...' : 'Salvar Agenda'}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {(['monday','tuesday','wednesday','thursday','friday','saturday','sunday'] as WeekDay[]).map(dayKey => {
+                  const labels: Record<WeekDay, string> = {
+                    monday: 'Segunda', tuesday: 'Terça', wednesday: 'Quarta',
+                    thursday: 'Quinta', friday: 'Sexta', saturday: 'Sábado', sunday: 'Domingo',
+                  };
+                  const ranges = scheduleDraft?.[dayKey] ?? [];
+                  return (
+                    <div key={dayKey} className="bg-white border border-brand-primary-light/25 rounded-2xl p-4 shadow-sm">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="font-sans font-bold text-sm text-brand-dark">{labels[dayKey]}</h3>
+                        {ranges.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setScheduleDraft(prev => prev ? { ...prev, [dayKey]: [] } : prev)}
+                            className="text-[10px] text-brand-tertiary hover:text-rose-600"
+                          >
+                            Folga
+                          </button>
+                        )}
+                      </div>
+                      {ranges.length === 0 ? (
+                        <p className="text-xs text-brand-tertiary italic mb-3">Folga</p>
+                      ) : (
+                        <div className="space-y-2 mb-3">
+                          {ranges.map((r, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                              <input
+                                type="time"
+                                value={r.start}
+                                onChange={(e) => setScheduleDraft(prev => prev ? {
+                                  ...prev,
+                                  [dayKey]: prev[dayKey].map((x, j) => j === i ? { ...x, start: e.target.value } : x),
+                                } : prev)}
+                                className="bg-[#faf9f8] border border-[#d6c2c4]/50 rounded-lg px-2 py-1 text-xs"
+                              />
+                              <span className="text-xs text-brand-tertiary">—</span>
+                              <input
+                                type="time"
+                                value={r.end}
+                                onChange={(e) => setScheduleDraft(prev => prev ? {
+                                  ...prev,
+                                  [dayKey]: prev[dayKey].map((x, j) => j === i ? { ...x, end: e.target.value } : x),
+                                } : prev)}
+                                className="bg-[#faf9f8] border border-[#d6c2c4]/50 rounded-lg px-2 py-1 text-xs"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setScheduleDraft(prev => prev ? {
+                                  ...prev,
+                                  [dayKey]: prev[dayKey].filter((_, j) => j !== i),
+                                } : prev)}
+                                className="p-1 text-rose-500 hover:bg-rose-50 rounded"
+                                title="Remover"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setScheduleDraft(prev => prev ? {
+                          ...prev,
+                          [dayKey]: [...prev[dayKey], { start: '09:00', end: '12:00' }],
+                        } : prev)}
+                        className="w-full text-xs text-brand-primary border border-dashed border-brand-primary-light/50 rounded-lg py-1.5 hover:bg-brand-primary-light/10"
+                      >
+                        + Adicionar intervalo
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {scheduleDraft && !isScheduleValid(scheduleDraft) && (
+                <p className="text-xs text-rose-600">Há intervalos inválidos (início ≥ fim, ou sobreposição). Corrija antes de salvar.</p>
+              )}
             </div>
           )}
 
