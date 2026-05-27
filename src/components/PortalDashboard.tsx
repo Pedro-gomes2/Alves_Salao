@@ -73,8 +73,12 @@ function formatScheduleShort(schedule: WeeklySchedule | undefined): { day: strin
   const order: WeekDay[] = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
   return order.map(k => {
     const label = DAY_SHORT_LABEL[k];
-    if (!schedule || !schedule[k] || schedule[k].length === 0) return { day: label, text: 'Folga' };
-    return { day: label, text: schedule[k].map(r => `${r.start}-${r.end}`).join(', ') };
+    const slots = schedule?.[k];
+    if (!slots || slots.length === 0) return { day: label, text: 'Folga' };
+    const sorted = [...slots].sort();
+    // Show "N horários (HH:mm–HH:mm)" or just list up to 4 then "…"
+    if (sorted.length <= 4) return { day: label, text: sorted.join(', ') };
+    return { day: label, text: `${sorted.length} horários (${sorted[0]}–${sorted[sorted.length - 1]})` };
   });
 }
 
@@ -334,7 +338,10 @@ export default function PortalDashboard({
   };
 
   // Helper values
-  const todayStr = '2026-05-22'; // Default mocked system date
+  const todayStr = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
 
   // Calculations
   const todayBookings = bookings.filter(b => b.date === todayStr);
@@ -355,13 +362,13 @@ export default function PortalDashboard({
   const isScheduleValid = (sched: WeeklySchedule | null): boolean => {
     if (!sched) return false;
     for (const k of Object.keys(sched) as WeekDay[]) {
-      const ranges = sched[k];
-      for (const r of ranges) {
-        if (!r.start || !r.end || r.start >= r.end) return false;
-      }
-      const sorted = [...ranges].sort((a, b) => a.start.localeCompare(b.start));
-      for (let i = 0; i < sorted.length - 1; i++) {
-        if (sorted[i].end > sorted[i + 1].start) return false;
+      const slots = sched[k];
+      if (!Array.isArray(slots)) return false;
+      const seen = new Set<string>();
+      for (const s of slots) {
+        if (typeof s !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(s)) return false;
+        if (seen.has(s)) return false;
+        seen.add(s);
       }
     }
     return true;

@@ -39,29 +39,16 @@ export function nextNDays(n: number, from: Date = new Date()): DayOption[] {
   return out;
 }
 
-function toHHMM(min: number): string {
-  return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
-}
-
 // Generate "HH:MM" slots for the given date, respecting the weekly schedule.
+// Each day in the schedule is a list of HH:mm slots the professional opened.
 // If schedule is omitted, falls back to DEFAULT_WEEKLY_SCHEDULE (back-compat).
 export function generateDaySlots(
   dateISO: string,
-  schedule: WeeklySchedule = DEFAULT_WEEKLY_SCHEDULE,
-  slotMinutes = 30
+  schedule: WeeklySchedule = DEFAULT_WEEKLY_SCHEDULE
 ): string[] {
   const d = new Date(dateISO + 'T00:00:00');
   const dayKey = WEEK_KEY_BY_GETDAY[d.getDay()];
-  const ranges = schedule[dayKey] || [];
-  const slots: string[] = [];
-  for (const range of ranges) {
-    const start = timeToMinutes(range.start);
-    const end = timeToMinutes(range.end);
-    for (let m = start; m + slotMinutes <= end; m += slotMinutes) {
-      slots.push(toHHMM(m));
-    }
-  }
-  return slots;
+  return [...(schedule[dayKey] || [])].sort();
 }
 
 export function dayHasAnySlot(schedule: WeeklySchedule | undefined, dateISO: string): boolean {
