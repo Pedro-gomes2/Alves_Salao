@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Specialist, Service, Booking } from '../types';
-import { nextNDays, computeSlotAvailability, ymd } from '../utils/timeSlots';
+import { nextNDays, computeSlotAvailability, ymd, generateDaySlots } from '../utils/timeSlots';
 import { 
   Sparkles, 
   Activity, 
@@ -80,6 +80,7 @@ export default function BookingFlow({
       durationMin: totalDuration,
       specialistId: selectedSpecialist.id,
       bookings,
+      schedule: selectedSpecialist.weeklySchedule,
     });
   }, [selectedSpecialist, selectedDate, totalDuration, bookings]);
 
@@ -609,22 +610,34 @@ export default function BookingFlow({
           <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar mb-8">
             {dayOptions.map((d) => {
               const isSelected = selectedDate === d.dateStr;
+              const slotsForDay = generateDaySlots(d.dateStr, selectedSpecialist?.weeklySchedule);
+              const isFolga = slotsForDay.length === 0;
               return (
                 <button
                   type="button"
                   key={d.dateStr}
-                  onClick={() => { setSelectedDate(d.dateStr); setSelectedTime(''); setBookingError(''); }}
-                  className={`min-w-[70px] h-20 flex flex-col items-center justify-center rounded-xl border transition-all cursor-pointer shrink-0 ${
-                    isSelected
-                      ? 'bg-brand-primary text-white border-brand-primary shadow-md scale-105 font-bold'
-                      : 'bg-white border-brand-primary-light/40 text-brand-dark hover:border-brand-primary'
+                  disabled={isFolga}
+                  onClick={() => {
+                    if (isFolga) return;
+                    setSelectedDate(d.dateStr);
+                    setSelectedTime('');
+                    setBookingError('');
+                  }}
+                  className={`min-w-[70px] h-20 flex flex-col items-center justify-center rounded-xl border transition-all shrink-0 ${
+                    isFolga
+                      ? 'bg-white border-rose-200 text-brand-dark opacity-50 cursor-not-allowed'
+                      : isSelected
+                        ? 'bg-brand-primary text-white border-brand-primary shadow-md scale-105 font-bold cursor-pointer'
+                        : 'bg-white border-brand-primary-light/40 text-brand-dark hover:border-brand-primary cursor-pointer'
                   }`}
                 >
                   <span className="font-sans text-[10px] font-bold tracking-widest opacity-65 mb-1">{d.dowAbbr}</span>
                   <span className="font-sans text-xl font-bold">{d.dayNum}/{d.monthLabel}</span>
-                  {d.isToday && (
+                  {d.isToday ? (
                     <span className={`text-[8px] font-bold uppercase mt-0.5 tracking-wider ${isSelected ? 'text-white/80' : 'text-brand-secondary'}`}>Hoje</span>
-                  )}
+                  ) : isFolga ? (
+                    <span className="text-[8px] font-bold uppercase mt-0.5 tracking-wider text-rose-500">Folga</span>
+                  ) : null}
                 </button>
               );
             })}
@@ -646,7 +659,9 @@ export default function BookingFlow({
             </p>
           </div>
 
-          {(() => {
+          {slotAvailability.length === 0 ? (
+            <p className="text-sm text-brand-tertiary italic py-6 text-center">A profissional não atende nesse dia.</p>
+          ) : (() => {
             const morning = slotAvailability.filter(s => s.time < '12:00');
             const afternoon = slotAvailability.filter(s => s.time >= '12:00');
             const allUnavailable = slotAvailability.length > 0 && slotAvailability.every(s => s.past || s.conflict);

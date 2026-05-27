@@ -14,7 +14,22 @@ export interface Specialist {
   username?: string;
   passwordHash?: string;
   roleType?: RoleType;
+  weeklySchedule?: WeeklySchedule;
 }
+
+export type TimeRange = { start: string; end: string }; // "HH:mm"
+export type WeekDay = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
+export type WeeklySchedule = Record<WeekDay, TimeRange[]>;
+
+export const DEFAULT_WEEKLY_SCHEDULE: WeeklySchedule = {
+  monday:    [{ start: '09:00', end: '17:30' }],
+  tuesday:   [{ start: '09:00', end: '17:30' }],
+  wednesday: [{ start: '09:00', end: '17:30' }],
+  thursday:  [{ start: '09:00', end: '17:30' }],
+  friday:    [{ start: '09:00', end: '17:30' }],
+  saturday:  [{ start: '09:00', end: '17:30' }],
+  sunday:    [],
+};
 
 export interface AuthUser {
   id: string;

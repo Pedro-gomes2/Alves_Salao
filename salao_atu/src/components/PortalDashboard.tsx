@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Specialist, Service, Booking, Transaction, AuthUser } from '../types';
+import { Specialist, Service, Booking, Transaction, AuthUser, WeeklySchedule, WeekDay, DEFAULT_WEEKLY_SCHEDULE } from '../types';
 import BookingDetailsModal from './BookingDetailsModal';
 import { 
   LayoutDashboard, 
@@ -30,7 +30,8 @@ import {
   TrendingDown,
   Star,
   MessageSquare,
-  KeyRound
+  KeyRound,
+  Pencil
 } from 'lucide-react';
 
 type PeriodKey = 'thisMonth' | 'lastMonth' | 'last30' | 'thisYear' | 'custom';
@@ -63,6 +64,20 @@ function filterByDate<T extends { date: string }>(items: T[], range: { start: st
   return items.filter(i => i.date >= range.start && i.date <= range.end);
 }
 
+const DAY_SHORT_LABEL: Record<string, string> = {
+  monday: 'Seg', tuesday: 'Ter', wednesday: 'Qua',
+  thursday: 'Qui', friday: 'Sex', saturday: 'Sáb', sunday: 'Dom',
+};
+
+function formatScheduleShort(schedule: WeeklySchedule | undefined): { day: string; text: string }[] {
+  const order: WeekDay[] = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+  return order.map(k => {
+    const label = DAY_SHORT_LABEL[k];
+    if (!schedule || !schedule[k] || schedule[k].length === 0) return { day: label, text: 'Folga' };
+    return { day: label, text: schedule[k].map(r => `${r.start}-${r.end}`).join(', ') };
+  });
+}
+
 interface PortalDashboardProps {
   specialists: Specialist[];
   services: Service[];
@@ -76,7 +91,7 @@ interface PortalDashboardProps {
   authToken: string;
 }
 
-type AdminTab = 'dashboard' | 'agenda' | 'equipe' | 'financeiro' | 'relatorio_detalhado' | 'nova_operacao' | 'config_especialist' | 'servicos' | 'config_servico';
+type AdminTab = 'dashboard' | 'agenda' | 'minha_agenda' | 'equipe' | 'financeiro' | 'relatorio_detalhado' | 'nova_operacao' | 'config_especialist' | 'servicos' | 'config_servico';
 
 export default function PortalDashboard({ 
   specialists, 
@@ -132,6 +147,8 @@ export default function PortalDashboard({
   const [customEnd, setCustomEnd] = useState('');
 
   // Agenda interactive views states
+  const [scheduleDraft, setScheduleDraft] = useState<WeeklySchedule | null>(null);
+  const [scheduleSaving, setScheduleSaving] = useState(false);
   const [agendaView, setAgendaView] = useState<'diario' | 'semanal' | 'mensal'>('diario');
   const [agendaDate, setAgendaDate] = useState<string>('2026-05-22');
   const [selectedSpecialistId, setSelectedSpecialistId] = useState<string>('all');
@@ -265,6 +282,7 @@ export default function PortalDashboard({
   const [transDate, setTransDate] = useState(new Date().toISOString().split('T')[0]);
   const [transCategory, setTransCategory] = useState('Materiais');
   const [transSpecialistId, setTransSpecialistId] = useState('');
+  const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
 
   // Specialist Setting states
   const [selectedSpec, setSelectedSpec] = useState<Specialist | null>(null);
@@ -325,6 +343,36 @@ export default function PortalDashboard({
   const totalRevenue = filteredTransactions.filter(t => t.type === 'entrada').reduce((sum, t) => sum + t.amount, 0);
   const totalExpenses = filteredTransactions.filter(t => t.type === 'saida').reduce((sum, t) => sum + t.amount, 0);
   const netProfit = totalRevenue - totalExpenses;
+
+  const currentSpec = !isAdmin ? specialists.find(s => s.id === currentUser.id) : undefined;
+
+  useEffect(() => {
+    if (currentSpec && !scheduleDraft) {
+      setScheduleDraft(currentSpec.weeklySchedule ?? DEFAULT_WEEKLY_SCHEDULE);
+    }
+  }, [currentSpec]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const isScheduleValid = (sched: WeeklySchedule | null): boolean => {
+    if (!sched) return false;
+    for (const k of Object.keys(sched) as WeekDay[]) {
+      const ranges = sched[k];
+      for (const r of ranges) {
+        if (!r.start || !r.end || r.start >= r.end) return false;
+      }
+      const sorted = [...ranges].sort((a, b) => a.start.localeCompare(b.start));
+      for (let i = 0; i < sorted.length - 1; i++) {
+        if (sorted[i].end > sorted[i + 1].start) return false;
+      }
+    }
+    return true;
+  };
+
+  const mySpecialistId = currentUser.id;
+  const myCommissionPct = currentSpec?.commission ?? 0;
+  const myGenerated = filteredTransactions
+    .filter(t => t.type === 'entrada' && t.specialistId === mySpecialistId)
+    .reduce((sum, t) => sum + t.amount, 0);
+  const myEstimatedPayout = (myGenerated * myCommissionPct) / 100;
 
   // Change booking status (Confirm / Reject / Cancel)
   const handleUpdateBookingStatus = async (id: string, status: 'confirmado' | 'cancelado' | 'finalizado') => {
@@ -403,6 +451,81 @@ export default function PortalDashboard({
       }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const resetTransactionForm = () => {
+    setEditingTransactionId(null);
+    setTransType('saida');
+    setTransDescription('');
+    setTransAmount('');
+    setTransDate(new Date().toISOString().split('T')[0]);
+    setTransCategory('Materiais');
+    setTransSpecialistId('');
+  };
+
+  const handleStartEditTransaction = (t: Transaction) => {
+    setEditingTransactionId(t.id);
+    setTransType(t.type);
+    setTransDescription(t.description);
+    setTransAmount(String(t.amount));
+    setTransDate(t.date);
+    setTransCategory(t.category);
+    setTransSpecialistId(t.specialistId || '');
+    setActiveTab('nova_operacao');
+  };
+
+  const handleUpdateTransaction = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTransactionId || !transDescription || !transAmount) return;
+    const selectedSpecObj = specialists.find(s => s.id === transSpecialistId);
+    const patch: Partial<Transaction> = {
+      type: transType,
+      description: transDescription,
+      amount: parseFloat(transAmount),
+      date: transDate,
+      category: transCategory,
+      specialistId: transSpecialistId || undefined,
+      specialistName: selectedSpecObj ? selectedSpecObj.name : undefined,
+    };
+    try {
+      const response = await fetch(`/api/transactions/${editingTransactionId}`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify(patch),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) {
+        onRefreshData();
+        resetTransactionForm();
+        setActiveTab('financeiro');
+        showToast('Lançamento atualizado!');
+      } else {
+        showToast(data.error || 'Erro ao atualizar lançamento.');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Erro ao conectar com o servidor.');
+    }
+  };
+
+  const handleDeleteTransaction = async (t: Transaction) => {
+    if (!window.confirm(`Excluir o lançamento "${t.description}" de R$ ${t.amount.toFixed(2)}?`)) return;
+    try {
+      const response = await fetch(`/api/transactions/${t.id}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) {
+        onRefreshData();
+        showToast('Lançamento excluído.');
+      } else {
+        showToast(data.error || 'Erro ao excluir lançamento.');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Erro ao conectar com o servidor.');
     }
   };
 
@@ -647,7 +770,21 @@ export default function PortalDashboard({
               <span>Dashboard</span>
             </button>
 
-            <button 
+            {!isAdmin && (
+              <button
+                onClick={() => { setActiveTab('minha_agenda'); setIsDrawerOpen(false); }}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl font-sans text-sm font-bold text-left transition-all ${
+                  activeTab === 'minha_agenda'
+                    ? 'bg-brand-primary-light/30 text-brand-primary'
+                    : 'text-brand-tertiary hover:bg-[#faf9f8]'
+                }`}
+              >
+                <Calendar className="w-4 h-4" />
+                <span>Minha Agenda</span>
+              </button>
+            )}
+
+            <button
               onClick={() => { setActiveTab('agenda'); setIsDrawerOpen(false); }}
               className={`flex items-center gap-3 px-4 py-3 rounded-xl font-sans text-sm font-bold text-left transition-all ${
                 activeTab === 'agenda' 
@@ -657,6 +794,18 @@ export default function PortalDashboard({
             >
               <Calendar className="w-4 h-4" />
               <span>Agenda</span>
+            </button>
+
+            <button
+              onClick={() => { setActiveTab('financeiro'); setIsDrawerOpen(false); }}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl font-sans text-sm font-bold text-left transition-all ${
+                activeTab === 'financeiro'
+                  ? 'bg-brand-primary-light/30 text-brand-primary'
+                  : 'text-brand-tertiary hover:bg-[#faf9f8]'
+              }`}
+            >
+              <DollarSign className="w-4 h-4" />
+              <span>{isAdmin ? 'Financeiro' : 'Meu Financeiro'}</span>
             </button>
 
             {isAdmin && (
@@ -671,18 +820,6 @@ export default function PortalDashboard({
                 >
                   <Users className="w-4 h-4" />
                   <span>Equipe</span>
-                </button>
-
-                <button
-                  onClick={() => { setActiveTab('financeiro'); setIsDrawerOpen(false); }}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl font-sans text-sm font-bold text-left transition-all ${
-                    activeTab === 'financeiro'
-                      ? 'bg-brand-primary-light/30 text-brand-primary'
-                      : 'text-brand-tertiary hover:bg-[#faf9f8]'
-                  }`}
-                >
-                  <DollarSign className="w-4 h-4" />
-                  <span>Financeiro</span>
                 </button>
 
                 <button
@@ -729,6 +866,13 @@ export default function PortalDashboard({
             <Calendar className="w-5 h-5" />
             <span className="text-[9px] font-bold mt-1 uppercase">Agenda</span>
           </button>
+          <button
+            onClick={() => setActiveTab('financeiro')}
+            className={`flex flex-col items-center p-2 rounded-lg ${activeTab === 'financeiro' ? 'text-brand-primary' : 'text-brand-tertiary/75'}`}
+          >
+            <DollarSign className="w-5 h-5" />
+            <span className="text-[9px] font-bold mt-1 uppercase">{isAdmin ? 'Caixa' : 'Meu Caixa'}</span>
+          </button>
           {isAdmin && (
             <>
               <button
@@ -744,13 +888,6 @@ export default function PortalDashboard({
               >
                 <Sparkles className="w-5 h-5" />
                 <span className="text-[9px] font-bold mt-1 uppercase">Serviços</span>
-              </button>
-              <button
-                onClick={() => setActiveTab('financeiro')}
-                className={`flex flex-col items-center p-2 rounded-lg ${activeTab === 'financeiro' ? 'text-brand-primary' : 'text-brand-tertiary/75'}`}
-              >
-                <DollarSign className="w-5 h-5" />
-                <span className="text-[9px] font-bold mt-1 uppercase">Caixa</span>
               </button>
             </>
           )}
@@ -1653,6 +1790,18 @@ export default function PortalDashboard({
                         <span className="font-sans font-bold text-brand-dark">{spec.attendanceCount}</span>
                       </div>
                     </div>
+
+                    <div className="mt-3 border-t border-brand-primary-light/15 pt-3">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-brand-tertiary">Agenda</span>
+                      <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5">
+                        {formatScheduleShort(spec.weeklySchedule).map(row => (
+                          <div key={row.day} className="flex items-baseline gap-2 text-[11px]">
+                            <span className="font-bold text-brand-primary w-7">{row.day}:</span>
+                            <span className={row.text === 'Folga' ? 'text-brand-tertiary italic' : 'text-brand-dark'}>{row.text}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 ))}
 
@@ -1669,24 +1818,147 @@ export default function PortalDashboard({
             </div>
           )}
 
+          {activeTab === 'minha_agenda' && !isAdmin && (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                <div>
+                  <span className="font-sans text-[11px] font-semibold text-brand-primary tracking-widest uppercase font-bold">Configuração</span>
+                  <h2 className="font-display text-3xl text-brand-dark">Minha Agenda Semanal</h2>
+                  <p className="text-brand-tertiary text-sm">Defina os dias e horários em que você atende. Domingos e folgas ficam vazios.</p>
+                </div>
+                <button
+                  type="button"
+                  disabled={!isScheduleValid(scheduleDraft) || scheduleSaving}
+                  onClick={async () => {
+                    if (!scheduleDraft) return;
+                    setScheduleSaving(true);
+                    try {
+                      const res = await fetch('/api/specialists/me/schedule', {
+                        method: 'PUT',
+                        headers: authHeaders(),
+                        body: JSON.stringify({ weeklySchedule: scheduleDraft }),
+                      });
+                      const data = await res.json().catch(() => ({}));
+                      if (res.ok) {
+                        onRefreshData();
+                        showToast('Agenda salva!');
+                      } else {
+                        showToast(data.error || 'Erro ao salvar agenda.');
+                      }
+                    } catch (e) {
+                      console.error(e);
+                      showToast('Erro ao conectar com o servidor.');
+                    } finally {
+                      setScheduleSaving(false);
+                    }
+                  }}
+                  className="bg-brand-primary text-white hover:bg-brand-primary-light hover:text-brand-primary py-3 px-6 rounded-full font-bold text-xs uppercase tracking-wider shadow-lg disabled:opacity-50"
+                >
+                  {scheduleSaving ? 'Salvando...' : 'Salvar Agenda'}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {(['monday','tuesday','wednesday','thursday','friday','saturday','sunday'] as WeekDay[]).map(dayKey => {
+                  const labels: Record<WeekDay, string> = {
+                    monday: 'Segunda', tuesday: 'Terça', wednesday: 'Quarta',
+                    thursday: 'Quinta', friday: 'Sexta', saturday: 'Sábado', sunday: 'Domingo',
+                  };
+                  const ranges = scheduleDraft?.[dayKey] ?? [];
+                  return (
+                    <div key={dayKey} className="bg-white border border-brand-primary-light/25 rounded-2xl p-4 shadow-sm">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="font-sans font-bold text-sm text-brand-dark">{labels[dayKey]}</h3>
+                        {ranges.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setScheduleDraft(prev => prev ? { ...prev, [dayKey]: [] } : prev)}
+                            className="text-[10px] text-brand-tertiary hover:text-rose-600"
+                          >
+                            Folga
+                          </button>
+                        )}
+                      </div>
+                      {ranges.length === 0 ? (
+                        <p className="text-xs text-brand-tertiary italic mb-3">Folga</p>
+                      ) : (
+                        <div className="space-y-2 mb-3">
+                          {ranges.map((r, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                              <input
+                                type="time"
+                                value={r.start}
+                                onChange={(e) => setScheduleDraft(prev => prev ? {
+                                  ...prev,
+                                  [dayKey]: prev[dayKey].map((x, j) => j === i ? { ...x, start: e.target.value } : x),
+                                } : prev)}
+                                className="bg-[#faf9f8] border border-[#d6c2c4]/50 rounded-lg px-2 py-1 text-xs"
+                              />
+                              <span className="text-xs text-brand-tertiary">—</span>
+                              <input
+                                type="time"
+                                value={r.end}
+                                onChange={(e) => setScheduleDraft(prev => prev ? {
+                                  ...prev,
+                                  [dayKey]: prev[dayKey].map((x, j) => j === i ? { ...x, end: e.target.value } : x),
+                                } : prev)}
+                                className="bg-[#faf9f8] border border-[#d6c2c4]/50 rounded-lg px-2 py-1 text-xs"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setScheduleDraft(prev => prev ? {
+                                  ...prev,
+                                  [dayKey]: prev[dayKey].filter((_, j) => j !== i),
+                                } : prev)}
+                                className="p-1 text-rose-500 hover:bg-rose-50 rounded"
+                                title="Remover"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setScheduleDraft(prev => prev ? {
+                          ...prev,
+                          [dayKey]: [...prev[dayKey], { start: '09:00', end: '12:00' }],
+                        } : prev)}
+                        className="w-full text-xs text-brand-primary border border-dashed border-brand-primary-light/50 rounded-lg py-1.5 hover:bg-brand-primary-light/10"
+                      >
+                        + Adicionar intervalo
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {scheduleDraft && !isScheduleValid(scheduleDraft) && (
+                <p className="text-xs text-rose-600">Há intervalos inválidos (início ≥ fim, ou sobreposição). Corrija antes de salvar.</p>
+              )}
+            </div>
+          )}
+
           {/* VIEW 4: FINANCIAL SUMMARY PORTAL */}
           {activeTab === 'financeiro' && (
             <div className="space-y-8">
               <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
                 <div>
-                  <span className="font-sans text-[11px] font-semibold text-brand-primary tracking-widest uppercase font-bold">Fluxo de Caixa</span>
-                  <h2 className="font-display text-3xl text-brand-dark">Resumo Financeiro</h2>
-                  <p className="text-brand-tertiary text-sm">Acompanhe a saúde do seu santuário em tempo real.</p>
+                  <span className="font-sans text-[11px] font-semibold text-brand-primary tracking-widest uppercase font-bold">{isAdmin ? 'Fluxo de Caixa' : 'Meus Atendimentos'}</span>
+                  <h2 className="font-display text-3xl text-brand-dark">{isAdmin ? 'Resumo Financeiro' : 'Meu Financeiro'}</h2>
+                  <p className="text-brand-tertiary text-sm">{isAdmin ? 'Acompanhe a saúde do seu santuário em tempo real.' : 'Acompanhe seus atendimentos e repasses no período selecionado.'}</p>
                 </div>
-
-                <div className="flex items-center gap-3">
-                  <button 
-                    onClick={() => setActiveTab('nova_operacao')}
-                    className="bg-brand-primary text-white hover:bg-brand-primary-light hover:text-brand-primary py-3 px-6 rounded-full font-bold text-xs uppercase tracking-wider shadow-lg flex items-center gap-1.5 transition-transform active:scale-95"
-                  >
-                    <Plus className="w-4 h-4" /> Lançar Operação
-                  </button>
-                </div>
+                {isAdmin && (
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => { resetTransactionForm(); setActiveTab('nova_operacao'); }}
+                      className="bg-brand-primary text-white hover:bg-brand-primary-light hover:text-brand-primary py-3 px-6 rounded-full font-bold text-xs uppercase tracking-wider shadow-lg flex items-center gap-1.5 transition-transform active:scale-95"
+                    >
+                      <Plus className="w-4 h-4" /> Lançar Operação
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Period filter */}
@@ -1730,51 +2002,89 @@ export default function PortalDashboard({
               </div>
 
               {/* Stats Cards Row */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                {/* Entradas */}
-                <div className="bg-white border border-brand-primary-light/25 rounded-2xl p-6 shadow-sm">
-                  <div className="flex justify-between items-center mb-4">
-                    <span className="font-sans text-[10px] font-bold text-brand-tertiary uppercase tracking-wider">Entradas</span>
-                    <TrendingUp className="w-5 h-5 text-emerald-600" />
+              {isAdmin ? (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                  {/* Entradas */}
+                  <div className="bg-white border border-brand-primary-light/25 rounded-2xl p-6 shadow-sm">
+                    <div className="flex justify-between items-center mb-4">
+                      <span className="font-sans text-[10px] font-bold text-brand-tertiary uppercase tracking-wider">Entradas</span>
+                      <TrendingUp className="w-5 h-5 text-emerald-600" />
+                    </div>
+                    <h3 className="font-display text-2xl lg:text-3xl text-brand-primary font-bold">
+                      R$ {totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-2">Geração de sessões e vendas</p>
                   </div>
-                  <h3 className="font-display text-2xl lg:text-3xl text-brand-primary font-bold">
-                    R$ {totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-2">Geração de sessões e vendas</p>
-                </div>
-
-                {/* Saidas */}
-                <div className="bg-white border border-brand-primary-light/25 rounded-2xl p-6 shadow-sm">
-                  <div className="flex justify-between items-center mb-4">
-                    <span className="font-sans text-[10px] font-bold text-brand-tertiary uppercase tracking-wider">Saídas</span>
-                    <TrendingDown className="w-5 h-5 text-red-600" />
+                  {/* Saidas */}
+                  <div className="bg-white border border-brand-primary-light/25 rounded-2xl p-6 shadow-sm">
+                    <div className="flex justify-between items-center mb-4">
+                      <span className="font-sans text-[10px] font-bold text-brand-tertiary uppercase tracking-wider">Saídas</span>
+                      <TrendingDown className="w-5 h-5 text-red-600" />
+                    </div>
+                    <h3 className="font-display text-2xl lg:text-3xl text-brand-dark font-bold">
+                      R$ {totalExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-2">Custos com materiais e equipe</p>
                   </div>
-                  <h3 className="font-display text-2xl lg:text-3xl text-brand-dark font-bold">
-                    R$ {totalExpenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-2">Custos com materiais e equipe</p>
-                </div>
-
-                {/* Net Profit */}
-                <div className="bg-brand-secondary text-white rounded-2xl p-6 shadow-md">
-                  <div className="flex justify-between items-center mb-4">
-                    <span className="font-sans text-[10px] font-bold uppercase tracking-wider opacity-75">Lucro Líquido</span>
-                    <DollarSign className="w-5 h-5 opacity-75" />
+                  {/* Net Profit */}
+                  <div className="bg-brand-secondary text-white rounded-2xl p-6 shadow-md">
+                    <div className="flex justify-between items-center mb-4">
+                      <span className="font-sans text-[10px] font-bold uppercase tracking-wider opacity-75">Lucro Líquido</span>
+                      <DollarSign className="w-5 h-5 opacity-75" />
+                    </div>
+                    <h3 className="font-display text-2xl lg:text-3xl font-bold">
+                      R$ {netProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </h3>
+                    <p className="text-xs opacity-75 mt-2">Saldo total consolidado</p>
                   </div>
-                  <h3 className="font-display text-2xl lg:text-3xl font-bold">
-                    R$ {netProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </h3>
-                  <p className="text-xs opacity-75 mt-2">Saldo total consolidado</p>
                 </div>
-              </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                  {/* Faturamento Gerado */}
+                  <div className="bg-white border border-brand-primary-light/25 rounded-2xl p-6 shadow-sm">
+                    <div className="flex justify-between items-center mb-4">
+                      <span className="font-sans text-[10px] font-bold text-brand-tertiary uppercase tracking-wider">Faturamento Gerado</span>
+                      <TrendingUp className="w-5 h-5 text-emerald-600" />
+                    </div>
+                    <h3 className="font-display text-2xl lg:text-3xl text-brand-primary font-bold">
+                      R$ {myGenerated.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-2">Atendimentos seus no período</p>
+                  </div>
+                  {/* Sua Comissão (%) */}
+                  <div className="bg-white border border-brand-primary-light/25 rounded-2xl p-6 shadow-sm">
+                    <div className="flex justify-between items-center mb-4">
+                      <span className="font-sans text-[10px] font-bold text-brand-tertiary uppercase tracking-wider">Sua Comissão</span>
+                      <DollarSign className="w-5 h-5 text-brand-secondary" />
+                    </div>
+                    <h3 className="font-display text-2xl lg:text-3xl text-brand-dark font-bold">
+                      {myCommissionPct}%
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-2">Definida pela administração</p>
+                  </div>
+                  {/* Repasse Estimado */}
+                  <div className="bg-brand-secondary text-white rounded-2xl p-6 shadow-md">
+                    <div className="flex justify-between items-center mb-4">
+                      <span className="font-sans text-[10px] font-bold uppercase tracking-wider opacity-75">Repasse Estimado</span>
+                      <DollarSign className="w-5 h-5 opacity-75" />
+                    </div>
+                    <h3 className="font-display text-2xl lg:text-3xl font-bold">
+                      R$ {myEstimatedPayout.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </h3>
+                    <p className="text-xs opacity-75 mt-2">Faturamento × comissão</p>
+                  </div>
+                </div>
+              )}
 
               {/* Transactions History Table */}
               <div className="bg-white border border-[#d6c2c4]/20 rounded-2xl overflow-hidden shadow-sm">
                 <div className="p-5 border-b border-brand-primary-light/10 flex justify-between items-center">
-                  <h3 className="font-sans font-bold text-base text-brand-dark">Histórico de Lançamentos ({filteredTransactions.length})</h3>
-                  <button onClick={() => setActiveTab('relatorio_detalhado')} className="text-xs text-brand-primary font-bold hover:underline flex items-center gap-1">
-                    <Printer className="w-3.5 h-3.5" /> Detalhar Relatório
-                  </button>
+                  <h3 className="font-sans font-bold text-base text-brand-dark">{isAdmin ? 'Histórico de Lançamentos' : 'Meus Atendimentos'} ({filteredTransactions.length})</h3>
+                  {isAdmin && (
+                    <button onClick={() => setActiveTab('relatorio_detalhado')} className="text-xs text-brand-primary font-bold hover:underline flex items-center gap-1">
+                      <Printer className="w-3.5 h-3.5" /> Detalhar Relatório
+                    </button>
+                  )}
                 </div>
 
                 <div className="overflow-x-auto">
@@ -1785,6 +2095,7 @@ export default function PortalDashboard({
                         <th className="p-4">Data</th>
                         <th className="p-4">Categoria</th>
                         <th className="p-4 text-right">Valor</th>
+                        {isAdmin && <th className="p-4 text-right">Ações</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-brand-primary-light/10">
@@ -1792,7 +2103,7 @@ export default function PortalDashboard({
                         <tr key={t.id} className="hover:bg-[#faf9f8] text-xs transition-colors">
                           <td className="p-4 font-sans font-bold text-brand-dark">
                             {t.description}
-                            {t.specialistName && (
+                            {isAdmin && t.specialistName && (
                               <span className="block text-[10px] text-brand-secondary font-semibold mt-0.5">Gerado por: {t.specialistName}</span>
                             )}
                           </td>
@@ -1805,6 +2116,28 @@ export default function PortalDashboard({
                           <td className={`p-4 text-right font-bold ${t.type === 'entrada' ? 'text-emerald-600' : 'text-brand-primary'}`}>
                             {t.type === 'entrada' ? '+' : '-'} R$ {t.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                           </td>
+                          {isAdmin && (
+                            <td className="p-4 text-right">
+                              <div className="inline-flex gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartEditTransaction(t)}
+                                  title="Editar"
+                                  className="p-1.5 rounded hover:bg-brand-primary-light/30 text-brand-primary"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteTransaction(t)}
+                                  title="Excluir"
+                                  className="p-1.5 rounded hover:bg-rose-100 text-rose-600"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -1952,7 +2285,7 @@ export default function PortalDashboard({
             <div className="space-y-8 max-w-xl mx-auto">
               <div>
                 <span className="font-sans text-[11px] font-semibold text-brand-primary tracking-widest uppercase">Lançamento de Caixa</span>
-                <h2 className="font-display text-3xl text-brand-dark">Nova Operação Financeira</h2>
+                <h2 className="font-display text-3xl text-brand-dark">{editingTransactionId ? 'Editar Lançamento' : 'Lançar Nova Operação'}</h2>
                 <p className="text-brand-tertiary text-sm">Registre suas movimentações com elegância e precisão contábil.</p>
               </div>
 
@@ -1981,7 +2314,7 @@ export default function PortalDashboard({
                   </button>
                 </div>
 
-                <form onSubmit={handleCreateTransaction} className="space-y-6">
+                <form onSubmit={editingTransactionId ? handleUpdateTransaction : handleCreateTransaction} className="space-y-6">
                   
                   {/* Descript */}
                   <div className="space-y-1">
@@ -2065,18 +2398,21 @@ export default function PortalDashboard({
 
                   {/* Submit Button */}
                   <div className="pt-4 flex gap-4">
-                    <button 
+                    <button
                       type="button"
-                      onClick={() => setActiveTab('financeiro')}
+                      onClick={() => {
+                        resetTransactionForm();
+                        setActiveTab('financeiro');
+                      }}
                       className="flex-1 py-3 border border-brand-tertiary/40 rounded-full font-bold text-xs uppercase tracking-wider hover:bg-[#faf9f8]"
                     >
                       Cancelar
                     </button>
-                    <button 
+                    <button
                       type="submit"
                       className="flex-1 bg-brand-primary text-white hover:bg-brand-primary-light hover:text-brand-primary py-3 rounded-full font-bold text-xs uppercase tracking-wider shadow-lg flex items-center justify-center gap-1.5 transition-transform active:scale-95"
                     >
-                      Confirmar Lançamento
+                      {editingTransactionId ? 'Salvar Alterações' : 'Lançar Operação'}
                     </button>
                   </div>
 
