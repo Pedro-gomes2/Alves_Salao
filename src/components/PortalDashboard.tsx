@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Specialist, Service, Booking, Transaction, AuthUser, WeeklySchedule, WeekDay, DEFAULT_WEEKLY_SCHEDULE } from '../types';
+import { Specialist, Service, Booking, Transaction, AuthUser, WeeklySchedule, WeekDay, DEFAULT_WEEKLY_SCHEDULE, ALL_POSSIBLE_SLOTS } from '../types';
 import BookingDetailsModal from './BookingDetailsModal';
 import { 
   LayoutDashboard, 
@@ -73,8 +73,12 @@ function formatScheduleShort(schedule: WeeklySchedule | undefined): { day: strin
   const order: WeekDay[] = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
   return order.map(k => {
     const label = DAY_SHORT_LABEL[k];
-    if (!schedule || !schedule[k] || schedule[k].length === 0) return { day: label, text: 'Folga' };
-    return { day: label, text: schedule[k].map(r => `${r.start}-${r.end}`).join(', ') };
+    const slots = schedule?.[k];
+    if (!slots || slots.length === 0) return { day: label, text: 'Folga' };
+    const sorted = [...slots].sort();
+    // Show "N horários (HH:mm–HH:mm)" or just list up to 4 then "…"
+    if (sorted.length <= 4) return { day: label, text: sorted.join(', ') };
+    return { day: label, text: `${sorted.length} horários (${sorted[0]}–${sorted[sorted.length - 1]})` };
   });
 }
 
@@ -334,7 +338,10 @@ export default function PortalDashboard({
   };
 
   // Helper values
-  const todayStr = '2026-05-22'; // Default mocked system date
+  const todayStr = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
 
   // Calculations
   const todayBookings = bookings.filter(b => b.date === todayStr);
@@ -355,13 +362,13 @@ export default function PortalDashboard({
   const isScheduleValid = (sched: WeeklySchedule | null): boolean => {
     if (!sched) return false;
     for (const k of Object.keys(sched) as WeekDay[]) {
-      const ranges = sched[k];
-      for (const r of ranges) {
-        if (!r.start || !r.end || r.start >= r.end) return false;
-      }
-      const sorted = [...ranges].sort((a, b) => a.start.localeCompare(b.start));
-      for (let i = 0; i < sorted.length - 1; i++) {
-        if (sorted[i].end > sorted[i + 1].start) return false;
+      const slots = sched[k];
+      if (!Array.isArray(slots)) return false;
+      const seen = new Set<string>();
+      for (const s of slots) {
+        if (typeof s !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(s)) return false;
+        if (seen.has(s)) return false;
+        seen.add(s);
       }
     }
     return true;
@@ -925,30 +932,32 @@ export default function PortalDashboard({
                   </div>
                 </div>
 
-                {/* Configuration of Salon WhatsApp (Admin settings) */}
-                <div className="bg-[#faf9f8] p-4 rounded-xl border border-[#d6c2c4]/40 max-w-sm w-full lg:w-80 shadow-inner">
-                  <div className="flex items-center gap-2 mb-2 text-brand-primary">
-                    <MessageSquare className="w-4 h-4 text-brand-primary" />
-                    <span className="font-sans text-[11px] font-bold uppercase tracking-wider">WhatsApp de Notificação</span>
+                {/* Configuration of Salon WhatsApp (Admin settings only) */}
+                {isAdmin && (
+                  <div className="bg-[#faf9f8] p-4 rounded-xl border border-[#d6c2c4]/40 max-w-sm w-full lg:w-80 shadow-inner">
+                    <div className="flex items-center gap-2 mb-2 text-brand-primary">
+                      <MessageSquare className="w-4 h-4 text-brand-primary" />
+                      <span className="font-sans text-[11px] font-bold uppercase tracking-wider">WhatsApp de Notificação</span>
+                    </div>
+                    <p className="text-[11px] text-[#847375] mb-2 leading-tight">
+                      Insira o número de WhatsApp do salão onde as clientes enviarão o agendamento:
+                    </p>
+                    <input
+                      type="text"
+                      placeholder="Ex: 5511999999999"
+                      value={salonWhatsapp}
+                      onChange={(e) => {
+                        if (onChangeSalonWhatsapp) {
+                          onChangeSalonWhatsapp(e.target.value.replace(/[^\d+]/g, ''));
+                        }
+                      }}
+                      className="w-full bg-white border border-[#d6c2c4]/65 rounded-lg px-3 py-1.5 text-xs font-mono text-brand-dark focus:border-brand-primary focus:ring-1 focus:ring-brand-primary outline-none transition-all shadow-sm"
+                    />
+                    <p className="text-[9px] text-brand-tertiary/75 mt-1 leading-none italic">
+                      * Apenas números com DDI + DDD (Ex: 5511999999999).
+                    </p>
                   </div>
-                  <p className="text-[11px] text-[#847375] mb-2 leading-tight">
-                    Insira o número de WhatsApp do salão onde as clientes enviarão o agendamento:
-                  </p>
-                  <input 
-                    type="text" 
-                    placeholder="Ex: 5511999999999"
-                    value={salonWhatsapp}
-                    onChange={(e) => {
-                      if (onChangeSalonWhatsapp) {
-                        onChangeSalonWhatsapp(e.target.value.replace(/[^\d+]/g, ''));
-                      }
-                    }}
-                    className="w-full bg-white border border-[#d6c2c4]/65 rounded-lg px-3 py-1.5 text-xs font-mono text-brand-dark focus:border-brand-primary focus:ring-1 focus:ring-brand-primary outline-none transition-all shadow-sm"
-                  />
-                  <p className="text-[9px] text-brand-tertiary/75 mt-1 leading-none italic">
-                    * Apenas números com DDI + DDD (Ex: 5511999999999).
-                  </p>
-                </div>
+                )}
               </div>
 
               {/* Metric Row */}
@@ -1858,84 +1867,85 @@ export default function PortalDashboard({
                 </button>
               </div>
 
+              <p className="text-xs text-brand-tertiary">Clique nos horários que você quer abrir. Os horários selecionados (rosé) ficam disponíveis pro cliente agendar. A duração do serviço bloqueia os slots seguintes automaticamente.</p>
+
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {(['monday','tuesday','wednesday','thursday','friday','saturday','sunday'] as WeekDay[]).map(dayKey => {
                   const labels: Record<WeekDay, string> = {
                     monday: 'Segunda', tuesday: 'Terça', wednesday: 'Quarta',
                     thursday: 'Quinta', friday: 'Sexta', saturday: 'Sábado', sunday: 'Domingo',
                   };
-                  const ranges = scheduleDraft?.[dayKey] ?? [];
+                  const openSet = new Set(scheduleDraft?.[dayKey] ?? []);
+                  const toggle = (slot: string) => setScheduleDraft(prev => {
+                    if (!prev) return prev;
+                    const cur = new Set(prev[dayKey]);
+                    if (cur.has(slot)) cur.delete(slot); else cur.add(slot);
+                    return { ...prev, [dayKey]: [...cur].sort() };
+                  });
                   return (
                     <div key={dayKey} className="bg-white border border-brand-primary-light/25 rounded-2xl p-4 shadow-sm">
                       <div className="flex items-center justify-between mb-3">
                         <h3 className="font-sans font-bold text-sm text-brand-dark">{labels[dayKey]}</h3>
-                        {ranges.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => setScheduleDraft(prev => prev ? { ...prev, [dayKey]: [] } : prev)}
-                            className="text-[10px] text-brand-tertiary hover:text-rose-600"
-                          >
-                            Folga
-                          </button>
-                        )}
+                        <span className="text-[10px] text-brand-tertiary">{openSet.size} horários</span>
                       </div>
-                      {ranges.length === 0 ? (
-                        <p className="text-xs text-brand-tertiary italic mb-3">Folga</p>
-                      ) : (
-                        <div className="space-y-2 mb-3">
-                          {ranges.map((r, i) => (
-                            <div key={i} className="flex items-center gap-2">
-                              <input
-                                type="time"
-                                value={r.start}
-                                onChange={(e) => setScheduleDraft(prev => prev ? {
-                                  ...prev,
-                                  [dayKey]: prev[dayKey].map((x, j) => j === i ? { ...x, start: e.target.value } : x),
-                                } : prev)}
-                                className="bg-[#faf9f8] border border-[#d6c2c4]/50 rounded-lg px-2 py-1 text-xs"
-                              />
-                              <span className="text-xs text-brand-tertiary">—</span>
-                              <input
-                                type="time"
-                                value={r.end}
-                                onChange={(e) => setScheduleDraft(prev => prev ? {
-                                  ...prev,
-                                  [dayKey]: prev[dayKey].map((x, j) => j === i ? { ...x, end: e.target.value } : x),
-                                } : prev)}
-                                className="bg-[#faf9f8] border border-[#d6c2c4]/50 rounded-lg px-2 py-1 text-xs"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => setScheduleDraft(prev => prev ? {
-                                  ...prev,
-                                  [dayKey]: prev[dayKey].filter((_, j) => j !== i),
-                                } : prev)}
-                                className="p-1 text-rose-500 hover:bg-rose-50 rounded"
-                                title="Remover"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => setScheduleDraft(prev => prev ? {
-                          ...prev,
-                          [dayKey]: [...prev[dayKey], { start: '09:00', end: '12:00' }],
-                        } : prev)}
-                        className="w-full text-xs text-brand-primary border border-dashed border-brand-primary-light/50 rounded-lg py-1.5 hover:bg-brand-primary-light/10"
-                      >
-                        + Adicionar intervalo
-                      </button>
+                      <div className="grid grid-cols-3 gap-1.5 mb-3">
+                        {ALL_POSSIBLE_SLOTS.map(slot => {
+                          const isOpen = openSet.has(slot);
+                          return (
+                            <button
+                              key={slot}
+                              type="button"
+                              onClick={() => toggle(slot)}
+                              className={`text-[11px] font-mono py-1 rounded transition-all ${
+                                isOpen
+                                  ? 'bg-brand-primary text-white shadow-sm'
+                                  : 'bg-[#faf9f8] text-brand-tertiary hover:bg-brand-primary-light/30 hover:text-brand-primary'
+                              }`}
+                            >
+                              {slot}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setScheduleDraft(prev => prev ? { ...prev, [dayKey]: [...ALL_POSSIBLE_SLOTS] } : prev)}
+                          className="text-[10px] text-brand-primary hover:underline"
+                        >
+                          Selecionar todos
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setScheduleDraft(prev => prev ? { ...prev, [dayKey]: [] } : prev)}
+                          className="text-[10px] text-brand-tertiary hover:text-rose-600"
+                        >
+                          Folga
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setScheduleDraft(prev => {
+                            if (!prev) return prev;
+                            const src = [...prev[dayKey]].sort();
+                            const next = { ...prev };
+                            (['monday','tuesday','wednesday','thursday','friday','saturday','sunday'] as WeekDay[]).forEach(k => {
+                              next[k] = [...src];
+                            });
+                            return next;
+                          })}
+                          className="text-[10px] text-brand-primary hover:underline ml-auto"
+                          title="Aplicar a seleção deste dia em todos os dias da semana"
+                        >
+                          Replicar p/ semana
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
               </div>
 
               {scheduleDraft && !isScheduleValid(scheduleDraft) && (
-                <p className="text-xs text-rose-600">Há intervalos inválidos (início ≥ fim, ou sobreposição). Corrija antes de salvar.</p>
+                <p className="text-xs text-rose-600">Há horários inválidos no rascunho. Corrija antes de salvar.</p>
               )}
             </div>
           )}

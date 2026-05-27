@@ -58,6 +58,23 @@ export default function BookingFlow({
   const [userWhatsapp, setUserWhatsapp] = useState<string>('');
   const [finalBooking, setFinalBooking] = useState<Booking | null>(null);
 
+  // Refresh data (specialists + bookings) when entering step 3 — picks up schedule
+  // changes a professional may have just made.
+  useEffect(() => {
+    if (step === 3 && onRefreshBookings) {
+      onRefreshBookings();
+    }
+  }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep selectedSpecialist in sync with refreshed specialists list (esp. weeklySchedule).
+  useEffect(() => {
+    if (!selectedSpecialist) return;
+    const fresh = specialists.find(s => s.id === selectedSpecialist.id);
+    if (fresh && fresh !== selectedSpecialist) {
+      setSelectedSpecialist(fresh);
+    }
+  }, [specialists]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto scroll to top on step change
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
