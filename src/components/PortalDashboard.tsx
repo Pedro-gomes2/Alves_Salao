@@ -932,30 +932,32 @@ export default function PortalDashboard({
                   </div>
                 </div>
 
-                {/* Configuration of Salon WhatsApp (Admin settings) */}
-                <div className="bg-[#faf9f8] p-4 rounded-xl border border-[#d6c2c4]/40 max-w-sm w-full lg:w-80 shadow-inner">
-                  <div className="flex items-center gap-2 mb-2 text-brand-primary">
-                    <MessageSquare className="w-4 h-4 text-brand-primary" />
-                    <span className="font-sans text-[11px] font-bold uppercase tracking-wider">WhatsApp de Notificação</span>
+                {/* Configuration of Salon WhatsApp (Admin settings only) */}
+                {isAdmin && (
+                  <div className="bg-[#faf9f8] p-4 rounded-xl border border-[#d6c2c4]/40 max-w-sm w-full lg:w-80 shadow-inner">
+                    <div className="flex items-center gap-2 mb-2 text-brand-primary">
+                      <MessageSquare className="w-4 h-4 text-brand-primary" />
+                      <span className="font-sans text-[11px] font-bold uppercase tracking-wider">WhatsApp de Notificação</span>
+                    </div>
+                    <p className="text-[11px] text-[#847375] mb-2 leading-tight">
+                      Insira o número de WhatsApp do salão onde as clientes enviarão o agendamento:
+                    </p>
+                    <input
+                      type="text"
+                      placeholder="Ex: 5511999999999"
+                      value={salonWhatsapp}
+                      onChange={(e) => {
+                        if (onChangeSalonWhatsapp) {
+                          onChangeSalonWhatsapp(e.target.value.replace(/[^\d+]/g, ''));
+                        }
+                      }}
+                      className="w-full bg-white border border-[#d6c2c4]/65 rounded-lg px-3 py-1.5 text-xs font-mono text-brand-dark focus:border-brand-primary focus:ring-1 focus:ring-brand-primary outline-none transition-all shadow-sm"
+                    />
+                    <p className="text-[9px] text-brand-tertiary/75 mt-1 leading-none italic">
+                      * Apenas números com DDI + DDD (Ex: 5511999999999).
+                    </p>
                   </div>
-                  <p className="text-[11px] text-[#847375] mb-2 leading-tight">
-                    Insira o número de WhatsApp do salão onde as clientes enviarão o agendamento:
-                  </p>
-                  <input 
-                    type="text" 
-                    placeholder="Ex: 5511999999999"
-                    value={salonWhatsapp}
-                    onChange={(e) => {
-                      if (onChangeSalonWhatsapp) {
-                        onChangeSalonWhatsapp(e.target.value.replace(/[^\d+]/g, ''));
-                      }
-                    }}
-                    className="w-full bg-white border border-[#d6c2c4]/65 rounded-lg px-3 py-1.5 text-xs font-mono text-brand-dark focus:border-brand-primary focus:ring-1 focus:ring-brand-primary outline-none transition-all shadow-sm"
-                  />
-                  <p className="text-[9px] text-brand-tertiary/75 mt-1 leading-none italic">
-                    * Apenas números com DDI + DDD (Ex: 5511999999999).
-                  </p>
-                </div>
+                )}
               </div>
 
               {/* Metric Row */}
