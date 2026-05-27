@@ -258,6 +258,24 @@ async function startServer() {
       return res.status(409).json({ error: 'Esse horário acabou de ser ocupado por outra cliente. Escolha outro.' });
     }
 
+    // Defense-in-depth: confirma que o horário cai no schedule do profissional
+    const specs = await getSpecialists();
+    const spec = specs.find(s => s.id === booking.specialistId);
+    if (spec && spec.weeklySchedule) {
+      const WEEK_KEY: Record<number, string> = {
+        0: 'sunday', 1: 'monday', 2: 'tuesday', 3: 'wednesday',
+        4: 'thursday', 5: 'friday', 6: 'saturday',
+      };
+      const dayKey = WEEK_KEY[new Date(booking.date + 'T00:00:00').getDay()];
+      const ranges = (spec.weeklySchedule as any)[dayKey] || [];
+      const fits = ranges.some((r: { start: string; end: string }) => {
+        return t2m(r.start) <= newStart && newEnd <= t2m(r.end);
+      });
+      if (!fits) {
+        return res.status(409).json({ error: 'Horário fora da agenda do profissional.' });
+      }
+    }
+
     const savedBooking = await insertBooking(booking);
 
     // If booking is immediately confirmed, log an incoming transaction
