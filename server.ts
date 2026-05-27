@@ -18,7 +18,10 @@ import {
   insertBooking,
   updateBookingStatus,
   getTransactions,
-  insertTransaction
+  insertTransaction,
+  updateTransaction,
+  deleteTransaction,
+  updateSpecialistSchedule
 } from './supabase';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-secret-change-me';
@@ -58,6 +61,33 @@ function tryAuth(req: AuthedRequest, _res: Response, next: NextFunction) {
     } catch { /* ignore */ }
   }
   next();
+}
+
+const WEEK_KEYS = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'] as const;
+const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+function validateWeeklySchedule(input: any): { ok: true } | { ok: false; reason: string } {
+  if (!input || typeof input !== 'object') return { ok: false, reason: 'Payload inválido.' };
+  for (const k of WEEK_KEYS) {
+    if (!Array.isArray(input[k])) return { ok: false, reason: `Dia "${k}" inválido.` };
+    const ranges = input[k] as Array<{ start: string; end: string }>;
+    for (const r of ranges) {
+      if (!r || !HHMM_RE.test(r.start) || !HHMM_RE.test(r.end)) {
+        return { ok: false, reason: `Horário inválido em ${k}.` };
+      }
+      if (r.start >= r.end) return { ok: false, reason: `Fim deve ser após início em ${k}.` };
+    }
+    const sorted = [...ranges].sort((a, b) => a.start.localeCompare(b.start));
+    for (let i = 0; i < sorted.length - 1; i++) {
+      if (sorted[i].end > sorted[i + 1].start) {
+        return { ok: false, reason: `Intervalos se sobrepõem em ${k}.` };
+      }
+    }
+  }
+  for (const k of Object.keys(input)) {
+    if (!WEEK_KEYS.includes(k as any)) return { ok: false, reason: `Chave inesperada: ${k}.` };
+  }
+  return { ok: true };
 }
 
 async function startServer() {
@@ -175,6 +205,20 @@ async function startServer() {
     res.json({ success: true, id });
   });
 
+  app.put('/api/specialists/me/schedule', requireAuth, async (req: AuthedRequest, res) => {
+    const { weeklySchedule } = req.body || {};
+    const check = validateWeeklySchedule(weeklySchedule);
+    if (check.ok !== true) return res.status(400).json({ error: check.reason });
+    const { data, error } = await updateSpecialistSchedule(req.user!.id, weeklySchedule);
+    if (error) {
+      console.error('Failed to update schedule:', error);
+      return res.status(500).json({ error: 'Não foi possível salvar a agenda.' });
+    }
+    if (!data) return res.status(404).json({ error: 'Profissional não encontrada.' });
+    if ((data as any).passwordHash) delete (data as any).passwordHash;
+    res.json(data);
+  });
+
   // 3. BOOKINGS
   app.get('/api/bookings', tryAuth, async (req: AuthedRequest, res) => {
     const bookings = await getBookings();
@@ -212,6 +256,24 @@ async function startServer() {
     );
     if (conflict) {
       return res.status(409).json({ error: 'Esse horário acabou de ser ocupado por outra cliente. Escolha outro.' });
+    }
+
+    // Defense-in-depth: confirma que o horário cai no schedule do profissional
+    const specs = await getSpecialists();
+    const spec = specs.find(s => s.id === booking.specialistId);
+    if (spec && spec.weeklySchedule) {
+      const WEEK_KEY: Record<number, string> = {
+        0: 'sunday', 1: 'monday', 2: 'tuesday', 3: 'wednesday',
+        4: 'thursday', 5: 'friday', 6: 'saturday',
+      };
+      const dayKey = WEEK_KEY[new Date(booking.date + 'T00:00:00').getDay()];
+      const ranges = (spec.weeklySchedule as any)[dayKey] || [];
+      const fits = ranges.some((r: { start: string; end: string }) => {
+        return t2m(r.start) <= newStart && newEnd <= t2m(r.end);
+      });
+      if (!fits) {
+        return res.status(409).json({ error: 'Horário fora da agenda do profissional.' });
+      }
     }
 
     const savedBooking = await insertBooking(booking);
@@ -285,9 +347,16 @@ async function startServer() {
   });
 
   // 4. TRANSACTIONS
-  app.get('/api/transactions', requireAdmin, async (req, res) => {
+  app.get('/api/transactions', tryAuth, async (req: AuthedRequest, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Não autenticado' });
     const transactions = await getTransactions();
-    res.json(transactions);
+    if (req.user.roleType === 'professional') {
+      return res.json(transactions.filter(t => t.specialistId === req.user!.id));
+    }
+    if (req.user.roleType === 'admin') {
+      return res.json(transactions);
+    }
+    return res.status(403).json({ error: 'Acesso restrito' });
   });
 
   app.post('/api/transactions', requireAdmin, async (req, res) => {
@@ -297,6 +366,29 @@ async function startServer() {
     }
     const saved = await insertTransaction(trans);
     res.json(saved);
+  });
+
+  app.patch('/api/transactions/:id', requireAdmin, async (req, res) => {
+    const id = req.params.id;
+    const { id: _ignored, ...patch } = req.body || {};
+    const { data, error } = await updateTransaction(id, patch);
+    if (error) {
+      console.error('Failed to update transaction:', error);
+      return res.status(500).json({ error: 'Não foi possível atualizar o lançamento.' });
+    }
+    if (!data) return res.status(404).json({ error: 'Lançamento não encontrado.' });
+    res.json(data);
+  });
+
+  app.delete('/api/transactions/:id', requireAdmin, async (req, res) => {
+    const id = req.params.id;
+    const { success, error } = await deleteTransaction(id);
+    if (error) {
+      console.error('Failed to delete transaction:', error);
+      return res.status(500).json({ error: 'Não foi possível excluir o lançamento.' });
+    }
+    if (!success) return res.status(404).json({ error: 'Lançamento não encontrado.' });
+    res.json({ success: true, id });
   });
 
   // Serve static assets and Vite server integration

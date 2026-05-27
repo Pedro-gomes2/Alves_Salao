@@ -1,4 +1,9 @@
-import { Booking } from '../types';
+import { Booking, WeeklySchedule, WeekDay, DEFAULT_WEEKLY_SCHEDULE } from '../types';
+
+const WEEK_KEY_BY_GETDAY: Record<number, WeekDay> = {
+  0: 'sunday', 1: 'monday', 2: 'tuesday', 3: 'wednesday',
+  4: 'thursday', 5: 'friday', 6: 'saturday',
+};
 
 export interface DayOption {
   dateStr: string; // YYYY-MM-DD
@@ -34,16 +39,33 @@ export function nextNDays(n: number, from: Date = new Date()): DayOption[] {
   return out;
 }
 
-// Build "HH:MM" slots between openHour and closeHour at `stepMin` granularity.
-// closeHour is exclusive (e.g. 18 means last slot is 17:30 with step 30).
-export function generateDaySlots(openHour = 9, closeHour = 18, stepMin = 30): string[] {
-  const out: string[] = [];
-  for (let h = openHour; h < closeHour; h++) {
-    for (let m = 0; m < 60; m += stepMin) {
-      out.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+function toHHMM(min: number): string {
+  return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+}
+
+// Generate "HH:MM" slots for the given date, respecting the weekly schedule.
+// If schedule is omitted, falls back to DEFAULT_WEEKLY_SCHEDULE (back-compat).
+export function generateDaySlots(
+  dateISO: string,
+  schedule: WeeklySchedule = DEFAULT_WEEKLY_SCHEDULE,
+  slotMinutes = 30
+): string[] {
+  const d = new Date(dateISO + 'T00:00:00');
+  const dayKey = WEEK_KEY_BY_GETDAY[d.getDay()];
+  const ranges = schedule[dayKey] || [];
+  const slots: string[] = [];
+  for (const range of ranges) {
+    const start = timeToMinutes(range.start);
+    const end = timeToMinutes(range.end);
+    for (let m = start; m + slotMinutes <= end; m += slotMinutes) {
+      slots.push(toHHMM(m));
     }
   }
-  return out;
+  return slots;
+}
+
+export function dayHasAnySlot(schedule: WeeklySchedule | undefined, dateISO: string): boolean {
+  return generateDaySlots(dateISO, schedule ?? DEFAULT_WEEKLY_SCHEDULE).length > 0;
 }
 
 // Returns minutes since midnight (e.g. "14:30" -> 870)
@@ -78,10 +100,11 @@ export function computeSlotAvailability(params: {
   durationMin: number;
   specialistId: string;
   bookings: Booking[];
+  schedule?: WeeklySchedule;
   slots?: string[];
   now?: Date;
 }): SlotAvailability[] {
-  const slots = params.slots ?? generateDaySlots();
+  const slots = params.slots ?? generateDaySlots(params.dateStr, params.schedule);
   const now = params.now ?? new Date();
   const dayBookings = params.bookings.filter(b =>
     b.specialistId === params.specialistId &&

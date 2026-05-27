@@ -1,4 +1,4 @@
-import { Specialist, Service, Booking, Transaction } from './types';
+import { Specialist, Service, Booking, Transaction, DEFAULT_WEEKLY_SCHEDULE } from './types';
 
 export const INITIAL_SERVICES: Service[] = [
   // PODOLOGIA
@@ -103,6 +103,7 @@ export const INITIAL_SPECIALISTS: Specialist[] = [
     attendanceCount: 0,
     username: 'admin',
     roleType: 'admin',
+    weeklySchedule: DEFAULT_WEEKLY_SCHEDULE,
   },
   {
     id: 'spec-1',
@@ -117,6 +118,7 @@ export const INITIAL_SPECIALISTS: Specialist[] = [
     attendanceCount: 158,
     username: 'juliana',
     roleType: 'professional',
+    weeklySchedule: DEFAULT_WEEKLY_SCHEDULE,
   },
   {
     id: 'spec-2',
@@ -131,6 +133,7 @@ export const INITIAL_SPECIALISTS: Specialist[] = [
     attendanceCount: 214,
     username: 'gabriela',
     roleType: 'professional',
+    weeklySchedule: DEFAULT_WEEKLY_SCHEDULE,
   },
   {
     id: 'spec-3',
@@ -145,6 +148,7 @@ export const INITIAL_SPECIALISTS: Specialist[] = [
     attendanceCount: 187,
     username: 'karina',
     roleType: 'professional',
+    weeklySchedule: DEFAULT_WEEKLY_SCHEDULE,
   },
   {
     id: 'spec-4',
@@ -159,6 +163,7 @@ export const INITIAL_SPECIALISTS: Specialist[] = [
     attendanceCount: 230,
     username: 'aline',
     roleType: 'professional',
+    weeklySchedule: DEFAULT_WEEKLY_SCHEDULE,
   }
 ];
 
