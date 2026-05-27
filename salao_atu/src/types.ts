@@ -17,19 +17,36 @@ export interface Specialist {
   weeklySchedule?: WeeklySchedule;
 }
 
-export type TimeRange = { start: string; end: string }; // "HH:mm"
+export type TimeRange = { start: string; end: string }; // legacy — kept for backward compatibility
 export type WeekDay = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
-export type WeeklySchedule = Record<WeekDay, TimeRange[]>;
+// Each day is a list of available HH:mm slots that the professional opens.
+export type WeeklySchedule = Record<WeekDay, string[]>;
+
+const DEFAULT_DAY_SLOTS = [
+  '09:00','09:30','10:00','10:30','11:00','11:30',
+  '13:30','14:00','14:30','15:00','15:30','16:00','16:30','17:00',
+];
 
 export const DEFAULT_WEEKLY_SCHEDULE: WeeklySchedule = {
-  monday:    [{ start: '09:00', end: '17:30' }],
-  tuesday:   [{ start: '09:00', end: '17:30' }],
-  wednesday: [{ start: '09:00', end: '17:30' }],
-  thursday:  [{ start: '09:00', end: '17:30' }],
-  friday:    [{ start: '09:00', end: '17:30' }],
-  saturday:  [{ start: '09:00', end: '17:30' }],
+  monday:    [...DEFAULT_DAY_SLOTS],
+  tuesday:   [...DEFAULT_DAY_SLOTS],
+  wednesday: [...DEFAULT_DAY_SLOTS],
+  thursday:  [...DEFAULT_DAY_SLOTS],
+  friday:    [...DEFAULT_DAY_SLOTS],
+  saturday:  [...DEFAULT_DAY_SLOTS],
   sunday:    [],
 };
+
+// All possible 30-min slots a UI may offer (06:00–21:00).
+export const ALL_POSSIBLE_SLOTS: string[] = (() => {
+  const out: string[] = [];
+  for (let h = 6; h < 21; h++) {
+    for (const m of [0, 30]) {
+      out.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+    }
+  }
+  return out;
+})();
 
 export interface AuthUser {
   id: string;

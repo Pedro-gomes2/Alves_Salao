@@ -70,18 +70,14 @@ function validateWeeklySchedule(input: any): { ok: true } | { ok: false; reason:
   if (!input || typeof input !== 'object') return { ok: false, reason: 'Payload inválido.' };
   for (const k of WEEK_KEYS) {
     if (!Array.isArray(input[k])) return { ok: false, reason: `Dia "${k}" inválido.` };
-    const ranges = input[k] as Array<{ start: string; end: string }>;
-    for (const r of ranges) {
-      if (!r || !HHMM_RE.test(r.start) || !HHMM_RE.test(r.end)) {
+    const slots = input[k] as unknown[];
+    const seen = new Set<string>();
+    for (const s of slots) {
+      if (typeof s !== 'string' || !HHMM_RE.test(s)) {
         return { ok: false, reason: `Horário inválido em ${k}.` };
       }
-      if (r.start >= r.end) return { ok: false, reason: `Fim deve ser após início em ${k}.` };
-    }
-    const sorted = [...ranges].sort((a, b) => a.start.localeCompare(b.start));
-    for (let i = 0; i < sorted.length - 1; i++) {
-      if (sorted[i].end > sorted[i + 1].start) {
-        return { ok: false, reason: `Intervalos se sobrepõem em ${k}.` };
-      }
+      if (seen.has(s)) return { ok: false, reason: `Horário duplicado em ${k}: ${s}.` };
+      seen.add(s);
     }
   }
   for (const k of Object.keys(input)) {
@@ -258,7 +254,8 @@ async function startServer() {
       return res.status(409).json({ error: 'Esse horário acabou de ser ocupado por outra cliente. Escolha outro.' });
     }
 
-    // Defense-in-depth: confirma que o horário cai no schedule do profissional
+    // Defense-in-depth: confirma que todos os slots de 30min cobertos pela duração
+    // estão liberados no schedule do profissional para esse dia.
     const specs = await getSpecialists();
     const spec = specs.find(s => s.id === booking.specialistId);
     if (spec && spec.weeklySchedule) {
@@ -267,11 +264,15 @@ async function startServer() {
         4: 'thursday', 5: 'friday', 6: 'saturday',
       };
       const dayKey = WEEK_KEY[new Date(booking.date + 'T00:00:00').getDay()];
-      const ranges = (spec.weeklySchedule as any)[dayKey] || [];
-      const fits = ranges.some((r: { start: string; end: string }) => {
-        return t2m(r.start) <= newStart && newEnd <= t2m(r.end);
-      });
-      if (!fits) {
+      const openSlots: string[] = (spec.weeklySchedule as any)[dayKey] || [];
+      const openSet = new Set(openSlots);
+      const toHHMM = (min: number) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+      const slotsNeeded: string[] = [];
+      for (let m = newStart; m < newEnd; m += 30) {
+        slotsNeeded.push(toHHMM(m));
+      }
+      const allOpen = slotsNeeded.every(s => openSet.has(s));
+      if (!allOpen) {
         return res.status(409).json({ error: 'Horário fora da agenda do profissional.' });
       }
     }
