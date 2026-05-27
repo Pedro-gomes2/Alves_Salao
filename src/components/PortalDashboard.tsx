@@ -64,6 +64,20 @@ function filterByDate<T extends { date: string }>(items: T[], range: { start: st
   return items.filter(i => i.date >= range.start && i.date <= range.end);
 }
 
+const DAY_SHORT_LABEL: Record<string, string> = {
+  monday: 'Seg', tuesday: 'Ter', wednesday: 'Qua',
+  thursday: 'Qui', friday: 'Sex', saturday: 'Sáb', sunday: 'Dom',
+};
+
+function formatScheduleShort(schedule: WeeklySchedule | undefined): { day: string; text: string }[] {
+  const order: WeekDay[] = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+  return order.map(k => {
+    const label = DAY_SHORT_LABEL[k];
+    if (!schedule || !schedule[k] || schedule[k].length === 0) return { day: label, text: 'Folga' };
+    return { day: label, text: schedule[k].map(r => `${r.start}-${r.end}`).join(', ') };
+  });
+}
+
 interface PortalDashboardProps {
   specialists: Specialist[];
   services: Service[];
@@ -1774,6 +1788,18 @@ export default function PortalDashboard({
                       <div>
                         <span className="block text-[9px] uppercase font-bold text-brand-tertiary opacity-70 mb-0.5">Sessões</span>
                         <span className="font-sans font-bold text-brand-dark">{spec.attendanceCount}</span>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 border-t border-brand-primary-light/15 pt-3">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-brand-tertiary">Agenda</span>
+                      <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5">
+                        {formatScheduleShort(spec.weeklySchedule).map(row => (
+                          <div key={row.day} className="flex items-baseline gap-2 text-[11px]">
+                            <span className="font-bold text-brand-primary w-7">{row.day}:</span>
+                            <span className={row.text === 'Folga' ? 'text-brand-tertiary italic' : 'text-brand-dark'}>{row.text}</span>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
