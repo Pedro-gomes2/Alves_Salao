@@ -20,7 +20,8 @@ import {
   getTransactions,
   insertTransaction,
   updateTransaction,
-  deleteTransaction
+  deleteTransaction,
+  updateSpecialistSchedule
 } from './supabase';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-secret-change-me';
@@ -60,6 +61,33 @@ function tryAuth(req: AuthedRequest, _res: Response, next: NextFunction) {
     } catch { /* ignore */ }
   }
   next();
+}
+
+const WEEK_KEYS = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'] as const;
+const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+function validateWeeklySchedule(input: any): { ok: true } | { ok: false; reason: string } {
+  if (!input || typeof input !== 'object') return { ok: false, reason: 'Payload inválido.' };
+  for (const k of WEEK_KEYS) {
+    if (!Array.isArray(input[k])) return { ok: false, reason: `Dia "${k}" inválido.` };
+    const ranges = input[k] as Array<{ start: string; end: string }>;
+    for (const r of ranges) {
+      if (!r || !HHMM_RE.test(r.start) || !HHMM_RE.test(r.end)) {
+        return { ok: false, reason: `Horário inválido em ${k}.` };
+      }
+      if (r.start >= r.end) return { ok: false, reason: `Fim deve ser após início em ${k}.` };
+    }
+    const sorted = [...ranges].sort((a, b) => a.start.localeCompare(b.start));
+    for (let i = 0; i < sorted.length - 1; i++) {
+      if (sorted[i].end > sorted[i + 1].start) {
+        return { ok: false, reason: `Intervalos se sobrepõem em ${k}.` };
+      }
+    }
+  }
+  for (const k of Object.keys(input)) {
+    if (!WEEK_KEYS.includes(k as any)) return { ok: false, reason: `Chave inesperada: ${k}.` };
+  }
+  return { ok: true };
 }
 
 async function startServer() {
@@ -175,6 +203,20 @@ async function startServer() {
     const id = req.params.id;
     await deleteSpecialist(id);
     res.json({ success: true, id });
+  });
+
+  app.put('/api/specialists/me/schedule', requireAuth, async (req: AuthedRequest, res) => {
+    const { weeklySchedule } = req.body || {};
+    const check = validateWeeklySchedule(weeklySchedule);
+    if (check.ok !== true) return res.status(400).json({ error: check.reason });
+    const { data, error } = await updateSpecialistSchedule(req.user!.id, weeklySchedule);
+    if (error) {
+      console.error('Failed to update schedule:', error);
+      return res.status(500).json({ error: 'Não foi possível salvar a agenda.' });
+    }
+    if (!data) return res.status(404).json({ error: 'Profissional não encontrada.' });
+    if ((data as any).passwordHash) delete (data as any).passwordHash;
+    res.json(data);
   });
 
   // 3. BOOKINGS

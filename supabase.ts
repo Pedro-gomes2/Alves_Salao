@@ -306,3 +306,32 @@ export async function deleteTransaction(
   transactionsMem = transactionsMem.filter(t => t.id !== id);
   return { success: transactionsMem.length < before, error: null };
 }
+
+export async function updateSpecialistSchedule(
+  id: string,
+  weeklySchedule: import('./src/types').WeeklySchedule
+): Promise<{ data: Specialist | null; error: { code?: string; message: string } | null }> {
+  if (supabaseClient) {
+    try {
+      const { data, error } = await supabaseClient
+        .from('specialists')
+        .update({ weeklySchedule })
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) {
+        console.warn('Supabase schedule update failed:', error);
+        return { data: null, error: { code: (error as any).code, message: error.message } };
+      }
+      const idx = specialistsMem.findIndex(s => s.id === id);
+      if (idx >= 0) specialistsMem[idx] = data as Specialist;
+      return { data: data as Specialist, error: null };
+    } catch (e: any) {
+      return { data: null, error: { message: e?.message || 'unknown error' } };
+    }
+  }
+  const idx = specialistsMem.findIndex(s => s.id === id);
+  if (idx < 0) return { data: null, error: { message: 'not found' } };
+  specialistsMem[idx] = { ...specialistsMem[idx], weeklySchedule };
+  return { data: specialistsMem[idx], error: null };
+}
