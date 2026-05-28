@@ -1,0 +1,7 @@
+{
+  "buildCommand": "npm run build",
+  "startCommand": "node dist/server.cjs",
+  "env": {
+    "NODE_ENV": "production"
+  }
+}
