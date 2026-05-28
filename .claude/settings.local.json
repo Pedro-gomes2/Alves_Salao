@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(cd \"C:\\\\Users\\\\JP\\\\Desktop\\\\Salao_alves\" && find src -name \"*.ts\" -o -name \"*.tsx\" | head -20)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(NODE_ENV=production timeout 3 node dist/server.cjs)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(grep -E \"^\\(\\\\\\\\[|[0-9]\\)\")",
+      "Bash(git push *)",
+      "Bash(grep -E \"^\\\\\\\\[\")"
     ]
   }
 }
