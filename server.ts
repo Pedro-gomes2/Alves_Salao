@@ -88,9 +88,8 @@ function validateWeeklySchedule(input: any): { ok: true } | { ok: false; reason:
   return { ok: true };
 }
 
-async function startServer() {
+async function createApp() {
   const app = express();
-  const PORT = 3000;
 
   app.use(express.json());
 
@@ -556,11 +555,20 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  return app;
 }
 
-startServer();
+// Export app for serverless environments
+export default createApp;
+
+// For local development, start the server
+if (process.env.NODE_ENV !== 'production' && process.argv[1]?.endsWith('server.ts')) {
+  createApp().then(app => {
+    const PORT = 3000;
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  });
+}
 
 
