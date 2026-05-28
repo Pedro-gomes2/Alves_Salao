@@ -3,7 +3,11 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/(?!api/|assets/|.*\\.)(.*)",
+      "source": "/api/(.*)",
+      "destination": "/api/[...].js"
+    },
+    {
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ]

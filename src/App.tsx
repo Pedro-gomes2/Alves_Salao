@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Specialist, Service, Booking, Transaction, AuthUser } from './types';
+import { Specialist, Service, Booking, Transaction, AuthUser, Client, Route } from './types';
 import BookingFlow from './components/BookingFlow';
 import PortalDashboard from './components/PortalDashboard';
 import LoginScreen from './components/LoginScreen';

@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
 
 interface Payment {
   id: string;
@@ -16,8 +15,11 @@ const Finance: React.FC = () => {
 
   const fetchPayments = async () => {
     try {
-      const res = await axios.get<Payment[]>('/api/payments');
-      setPayments(res.data);
+      const res = await fetch('/api/payments');
+      if (res.ok) {
+        const data = await res.json() as Payment[];
+        setPayments(data);
+      }
     } catch (err) {
       console.error('Failed to fetch payments', err);
     } finally {
@@ -27,9 +29,15 @@ const Finance: React.FC = () => {
 
   const confirmPayment = async (paymentId: string) => {
     try {
-      await axios.post('/api/payments/confirm', { paymentId });
-      // refresh list
-      await fetchPayments();
+      const res = await fetch('/api/payments/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentId }),
+      });
+      if (res.ok) {
+        // refresh list
+        await fetchPayments();
+      }
     } catch (err) {
       console.error('Failed to confirm payment', err);
     }

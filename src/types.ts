@@ -1,19 +1,19 @@
 export type RoleType = 'admin' | 'professional';
+export type Route = 'admin' | 'agendar';
 
 export interface Specialist {
   id: string;
   name: string;
-  role: string;
   specialty?: string;
-  commission: number; // e.g. 35 for 35%
-  avatarUrl: string;
-  rating: number;
-  services: string[]; // array of serviceIds
+  commission?: number; // e.g. 35 for 35%
+  avatarUrl?: string;
+  rating?: number;
+  services?: string[]; // array of serviceIds
   active: boolean;
   attendanceCount: number; // mock or tracked number of attendances
-  username?: string;
+  username: string;
   passwordHash?: string;
-  roleType?: RoleType;
+  roleType: RoleType; // Use this instead of 'role'
   weeklySchedule?: WeeklySchedule;
 }
 
@@ -82,6 +82,7 @@ export interface Booking {
   status: 'confirmado' | 'pendente' | 'cancelado' | 'finalizado';
   totalPrice: number;
   totalDuration: number;
+  createdAt?: string; // ISO timestamp
   // new fields
   paymentStatus?: 'pending' | 'paid';
   confirmationStatus?: 'aguardandoAdmin' | 'confirmado' | 'rejeitado'; // already exists

@@ -93,7 +93,6 @@ export const INITIAL_SPECIALISTS: Specialist[] = [
   {
     id: 'spec-admin',
     name: 'Administração Alves',
-    role: 'Administradora',
     specialty: 'Gestão geral do salão',
     commission: 0,
     avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=300',
@@ -108,7 +107,6 @@ export const INITIAL_SPECIALISTS: Specialist[] = [
   {
     id: 'spec-1',
     name: 'Juliana Neves',
-    role: 'Podologia Sênior',
     specialty: 'Podologia Clarificadora & Spa de Alta Técnica',
     commission: 30,
     avatarUrl: 'https://images.unsplash.com/photo-1594824813573-246434de83fb?auto=format&fit=crop&q=80&w=300',
@@ -123,7 +121,6 @@ export const INITIAL_SPECIALISTS: Specialist[] = [
   {
     id: 'spec-2',
     name: 'Gabriela Rocha',
-    role: 'Nail Designer',
     specialty: 'Alongamentos Refinados, Gel & Blindagem de Unhas',
     commission: 35,
     avatarUrl: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=300',
@@ -138,7 +135,6 @@ export const INITIAL_SPECIALISTS: Specialist[] = [
   {
     id: 'spec-3',
     name: 'Karina Alencar',
-    role: 'Hairstylist & Cabeleireira',
     specialty: 'Cortes Design, Mechas Criativas & Reconstrução Capilar',
     commission: 40,
     avatarUrl: 'https://images.unsplash.com/photo-1622324267244-be02fc5f7919?auto=format&fit=crop&q=80&w=300',
@@ -153,7 +149,6 @@ export const INITIAL_SPECIALISTS: Specialist[] = [
   {
     id: 'spec-4',
     name: 'Aline Oliveira',
-    role: 'Lash Designer',
     specialty: 'Extensões Volume Brasileiro & Lash Lifting Premium',
     commission: 35,
     avatarUrl: 'https://images.unsplash.com/photo-1591604021695-0c69b7c05981?auto=format&fit=crop&q=80&w=300',

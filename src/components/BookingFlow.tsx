@@ -467,11 +467,11 @@ export default function BookingFlow({
                     />
                   </div>
                   <h3 className="font-display text-xl text-brand-dark mb-1 font-semibold group-hover:text-brand-primary transition-colors">{spec.name}</h3>
-                  <p className="font-sans text-xs text-brand-tertiary mb-3 uppercase tracking-wider font-extrabold text-[9px]">{spec.role}</p>
-                  
+                  <p className="font-sans text-xs text-brand-tertiary mb-3 uppercase tracking-wider font-extrabold text-[9px]">{spec.specialty || 'Especialista'}</p>
+
                   <div className="flex items-center gap-1 text-xs text-brand-secondary mb-5 font-semibold">
                     <Star className="w-3.5 h-3.5 fill-current text-yellow-500" />
-                    <span>{spec.rating} • {spec.role.split(' ')[0]}</span>
+                    <span>{spec.rating || 0} • {(spec.specialty || 'Especialista').split(' ')[0]}</span>
                   </div>
 
                   <button 
@@ -539,7 +539,9 @@ export default function BookingFlow({
             <div>
               <p className="font-sans text-[10px] font-bold text-brand-primary tracking-widest uppercase">Profissional Selecionada</p>
               <h3 className="font-display text-lg text-brand-dark font-semibold">{selectedSpecialist.name}</h3>
-              <p className="text-xs text-brand-tertiary">{selectedSpecialist.role}</p>
+              {selectedSpecialist.specialty && (
+                <p className="text-xs text-brand-tertiary">{selectedSpecialist.specialty}</p>
+              )}
             </div>
           </div>
 

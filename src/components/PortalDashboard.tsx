@@ -549,12 +549,12 @@ export default function PortalDashboard({
     setSelectedSpec(spec);
     setIsNewSpec(false);
     setSpecName(spec.name);
-    setSpecRole(spec.role);
+    setSpecRole(''); // Cargo is not stored, set to empty
     setSpecSpecialty(spec.specialty || '');
     setSpecCommission(spec.commission);
     setSpecActive(spec.active);
     setSpecAvatar(spec.avatarUrl);
-    setSpecSelectedServices(spec.services);
+    setSpecSelectedServices(spec.services || []);
     setSpecUsername(spec.username || '');
     setSpecNewPassword('');
     setSpecRoleType((spec.roleType as 'admin' | 'professional') || 'professional');
@@ -583,8 +583,7 @@ export default function PortalDashboard({
     const payload: Specialist & { newPassword?: string } = {
       id: isNewSpec ? 'spec-' + Date.now() : selectedSpec!.id,
       name: specName,
-      role: specRole,
-      specialty: specSpecialty,
+      specialty: specSpecialty || specRole, // Use cargo as specialty if provided
       commission: specCommission,
       avatarUrl: specAvatar,
       rating: isNewSpec ? 4.9 : selectedSpec!.rating,
@@ -1807,11 +1806,8 @@ export default function PortalDashboard({
                       </div>
                       <div className="flex-1 min-w-0">
                         <h3 className="font-sans font-bold text-base text-brand-dark truncate">{spec.name}</h3>
-                        <p className="text-xs text-brand-primary font-semibold truncate">{spec.role}</p>
                         {spec.specialty && (
-                          <p className="text-[10px] text-brand-tertiary mt-0.5 truncate italic">
-                            Especialidade: {spec.specialty}
-                          </p>
+                          <p className="text-xs text-brand-primary font-semibold truncate">{spec.specialty}</p>
                         )}
                         <div className="flex items-center gap-1 text-[10px] text-brand-secondary font-bold mt-1 uppercase">
                           <Star className="w-3 h-3 text-brand-secondary fill-current" />
@@ -2407,7 +2403,9 @@ export default function PortalDashboard({
                           <tr key={s.id}>
                             <td className="p-4 font-sans font-bold text-brand-dark">
                               {s.name}
-                              <span className="block text-[10px] text-brand-tertiary/75 font-normal mt-0.5">{s.role}</span>
+                              {s.specialty && (
+                                <span className="block text-[10px] text-brand-tertiary/75 font-normal mt-0.5">{s.specialty}</span>
+                              )}
                             </td>
                             <td className="p-4 text-center text-brand-tertiary">{count}</td>
                             <td className="p-4 text-right text-brand-tertiary">{s.commission}%</td>

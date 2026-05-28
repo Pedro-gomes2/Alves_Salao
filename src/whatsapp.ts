@@ -1,5 +1,3 @@
-import axios from 'axios';
-
 // Simple wrapper for WhatsApp webhook (mock implementation). Adjust URL and token as needed.
 export async function sendWhatsApp(to: string, message: string, interactive?: { type: 'button'; title: string; payload: string }[]) {
   const payload: any = {
@@ -7,10 +5,18 @@ export async function sendWhatsApp(to: string, message: string, interactive?: { 
     body: message,
     interactive,
   };
-  // Assuming a local webhook at /api/whatsapp/outbound (you can replace with actual provider endpoint)
+  // Placeholder implementation: integrate with actual WhatsApp provider (Twilio, Meta, etc.)
   try {
-    await axios.post('http://localhost:3000/api/whatsapp/outbound', payload);
-    console.log('WhatsApp message sent to', to);
+    const response = await fetch('http://localhost:3000/api/whatsapp/outbound', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (response.ok) {
+      console.log('WhatsApp message sent to', to);
+    } else {
+      console.warn('WhatsApp message failed:', response.statusText);
+    }
   } catch (e) {
     console.error('Failed to send WhatsApp message', e);
   }

@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { Specialist, Service, Booking, Transaction } from './src/types';
+import { Specialist, Service, Booking, Transaction, WeeklySchedule } from './src/types';
 import { INITIAL_SPECIALISTS, INITIAL_SERVICES, INITIAL_BOOKINGS, INITIAL_TRANSACTIONS } from './src/data';
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -309,7 +309,7 @@ export async function deleteTransaction(
 
 export async function updateSpecialistSchedule(
   id: string,
-  weeklySchedule: import('./src/types').WeeklySchedule
+  weeklySchedule: WeeklySchedule
 ): Promise<{ data: Specialist | null; error: { code?: string; message: string } | null }> {
   if (supabaseClient) {
     try {
