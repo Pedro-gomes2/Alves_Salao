@@ -9,7 +9,8 @@
       "Bash(grep -E \"^\\(\\\\\\\\[|[0-9]\\)\")",
       "Bash(git push *)",
       "Bash(grep -E \"^\\\\\\\\[\")",
-      "Bash(grep \"^\\\\\\\\[\")"
+      "Bash(grep \"^\\\\\\\\[\")",
+      "Bash(rm \"C:\\\\Users\\\\JP\\\\Desktop\\\\Salao_alves\\\\vercel.json\" && rm \"C:\\\\Users\\\\JP\\\\Desktop\\\\Salao_alves\\\\api\\\\[...].ts\" 2>&1)"
     ]
   }
 }
