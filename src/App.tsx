@@ -5,7 +5,7 @@ import PortalDashboard from './components/PortalDashboard';
 import LoginScreen from './components/LoginScreen';
 import { Sparkles, LogOut } from 'lucide-react';
 
-type Route = 'agendar' | 'admin';
+
 
 function pathToRoute(pathname: string): Route {
   // Map clean paths to logical routes. Legacy ?page= is read once via legacyMode().
@@ -27,6 +27,7 @@ export default function App() {
   const [services, setServices] = useState<Service[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [dbStatus, setDbStatus] = useState<{ configured: boolean, mode: string }>({ configured: false, mode: 'local_memory' });
 
   const [route, setRoute] = useState<Route>(() => {
@@ -98,18 +99,28 @@ export default function App() {
         fetch('/api/bookings', { headers: authHeader() }),
         fetch('/api/db-status'),
       ];
-      // Transactions only loaded for admins (endpoint is admin-only)
-      if (currentUser?.roleType === 'admin') {
+      // Fetch transactions for ALL authenticated users (admin sees all, professional sees own)
+      if (currentUser) {
         reqs.push(fetch('/api/transactions', { headers: authHeader() }));
+        reqs.push(fetch('/api/clients', { headers: authHeader() }));
       }
-      const [specRes, servRes, bookRes, dbRes, transRes] = await Promise.all(reqs);
+      const resps = await Promise.all(reqs);
+      
+      const specRes = resps[0];
+      const servRes = resps[1];
+      const bookRes = resps[2];
+      const dbRes = resps[3];
+      const transRes = currentUser ? resps[4] : undefined;
+      const clientsRes = currentUser ? resps[5] : undefined;
 
       if (specRes.ok) setSpecialists(await specRes.json());
       if (servRes.ok) setServices(await servRes.json());
       if (bookRes.ok) setBookings(await bookRes.json());
       if (dbRes && dbRes.ok) setDbStatus(await dbRes.json());
       if (transRes && transRes.ok) setTransactions(await transRes.json());
-      else if (currentUser?.roleType !== 'admin') setTransactions([]);
+      else setTransactions([]);
+      if (clientsRes && clientsRes.ok) setClients(await clientsRes.json());
+      else setClients([]);
     } catch (err) {
       console.error('Failed to connect to express server, fallback to default offline state', err);
     } finally {
@@ -203,6 +214,7 @@ export default function App() {
                   services={services}
                   bookings={bookings}
                   transactions={transactions}
+                  clients={clients}
                   onRefreshData={fetchData}
                   dbStatus={dbStatus}
                   salonWhatsapp={salonWhatsapp}

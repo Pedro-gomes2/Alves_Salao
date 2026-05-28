@@ -4,7 +4,7 @@ import path from 'path';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { createServer as createViteServer } from 'vite';
-import { Specialist, Service, Booking, Transaction, AuthUser, RoleType } from './src/types';
+import { Specialist, Service, Booking, Transaction, AuthUser, RoleType, Client, Payment } from './src/types';
 import {
   isSupabaseConfigured,
   getServices,
@@ -25,6 +25,8 @@ import {
 } from './supabase';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-secret-change-me';
+// In‑memory storage for clients (replace with DB in production)
+let clients: Client[] = [];
 
 interface AuthedRequest extends Request {
   user?: AuthUser;
@@ -219,8 +221,11 @@ async function startServer() {
   app.get('/api/bookings', tryAuth, async (req: AuthedRequest, res) => {
     const bookings = await getBookings();
     // Professionals only see their own bookings; admins and unauthenticated (booking flow) see all
-    if (req.user && req.user.roleType === 'professional') {
-      return res.json(bookings.filter(b => b.specialistId === req.user!.id));
+    if (req.user) {
+      const roleType = req.user.roleType || 'professional';
+      if (roleType === 'professional') {
+        return res.json(bookings.filter(b => b.specialistId === req.user!.id));
+      }
     }
     res.json(bookings);
   });
@@ -317,14 +322,11 @@ async function startServer() {
       const oldStatus = booking.status;
       const updated = await updateBookingStatus(id, status);
 
-      // Record an incoming transaction the FIRST time this booking reaches
-      // 'confirmado' or 'finalizado' (whichever happens first). Avoids double
-      // counting if it then progresses confirm → finalize later.
-      const shouldRecord =
-        (oldStatus !== 'confirmado' && oldStatus !== 'finalizado') &&
-        (status === 'confirmado' || status === 'finalizado');
+      // Record an incoming transaction ONLY when this booking reaches
+      // 'finalizado'.
+      const shouldRecord = oldStatus !== 'finalizado' && status === 'finalizado';
       if (shouldRecord) {
-        const verb = status === 'finalizado' ? 'Finalizado' : 'Confirmado';
+        const verb = 'Finalizado';
         const trans: Transaction = {
           id: 'trans-' + Date.now(),
           type: 'entrada',
@@ -356,10 +358,11 @@ async function startServer() {
   app.get('/api/transactions', tryAuth, async (req: AuthedRequest, res) => {
     if (!req.user) return res.status(401).json({ error: 'Não autenticado' });
     const transactions = await getTransactions();
-    if (req.user.roleType === 'professional') {
+    const roleType = req.user.roleType || 'professional';
+    if (roleType === 'professional') {
       return res.json(transactions.filter(t => t.specialistId === req.user!.id));
     }
-    if (req.user.roleType === 'admin') {
+    if (roleType === 'admin') {
       return res.json(transactions);
     }
     return res.status(403).json({ error: 'Acesso restrito' });
@@ -397,6 +400,136 @@ async function startServer() {
     res.json({ success: true, id });
   });
 
+  // Get all clients (admin only)
+  app.get('/api/clients', requireAuth, (req: AuthedRequest, res) => {
+    if (req.user?.roleType !== 'admin') {
+      return res.status(403).json({ error: 'Acesso restrito ao administrador' });
+    }
+    res.json(clients);
+  });
+
+  // Create client (admin only)
+  app.post('/api/clients', requireAuth, (req: AuthedRequest, res: Response) => {
+    if (req.user?.roleType !== 'admin') {
+      return res.status(403).json({ error: 'Acesso restrito ao administrador' });
+    }
+    const { name, phone, notes } = req.body || {};
+    if (!name || !phone) {
+      return res.status(400).json({ error: 'Nome e telefone são obrigatórios' });
+    }
+    const conflict = clients.some(c => c.phone === phone);
+    if (conflict) {
+      return res.status(409).json({ error: 'Telefone já cadastrado' });
+    }
+    const newClient: Client = {
+      id: 'client-' + Date.now(),
+      professionalId: req.user!.id,
+      name,
+      phone,
+      notes: notes || '',
+    };
+    clients.push(newClient);
+    res.json(newClient);
+  });
+  app.put('/api/clients/:id', requireAuth, (req: AuthedRequest, res: Response) => {
+    const { id } = req.params;
+    const updated: Client = req.body;
+    if (!id || !updated.name || !updated.phone) {
+      return res.status(400).json({ error: 'ID, name, and phone are required' });
+    }
+    const idx = clients.findIndex(c => c.id === id && c.professionalId === req.user!.id);
+    if (idx === -1) return res.status(404).json({ error: 'Cliente não encontrado' });
+    const conflict = clients.some(c => c.id !== id && c.phone === updated.phone && c.professionalId === req.user!.id);
+    if (conflict) {
+      return res.status(409).json({ error: 'Telefone já cadastrado para este profissional' });
+    }
+    clients[idx] = { ...clients[idx], ...updated, id, professionalId: req.user!.id };
+    res.json(clients[idx]);
+  });
+
+  app.delete('/api/clients/:id', requireAuth, (req: AuthedRequest, res: Response) => {
+    const { id } = req.params;
+    const idx = clients.findIndex(c => c.id === id && c.professionalId === req.user!.id);
+    if (idx === -1) return res.status(404).json({ error: 'Cliente não encontrado' });
+    const removed = clients.splice(idx, 1)[0];
+    res.json({ success: true, id: removed.id });
+  });
+
+  // In-memory storage for payments (will be persisted in Supabase in production)
+  let payments: Payment[] = [];
+
+  // Payments API (admin only for list, professional can see own payments)
+  app.get('/api/payments', requireAuth, async (req: AuthedRequest, res) => {
+    const allBookings = await getBookings();
+    if (req.user?.roleType === 'professional') {
+      const own = payments.filter(p => {
+        const b = allBookings.find(bk => bk.id === p.bookingId);
+        return b?.specialistId === req.user!.id;
+      });
+      return res.json(own);
+    }
+    res.json(payments);
+  });
+
+  app.post('/api/payments', requireAuth, async (req: AuthedRequest, res) => {
+    const { bookingId, amount, method } = req.body;
+    if (!bookingId || !amount) {
+      return res.status(400).json({ error: 'bookingId and amount are required' });
+    }
+    const payment: Payment = {
+      id: 'pay-' + Date.now(),
+      bookingId,
+      amount,
+      date: new Date().toISOString().split('T')[0],
+      method: method || 'whatsapp',
+      status: 'pending',
+    };
+    payments.push(payment);
+    res.json(payment);
+  });
+
+  app.post('/api/payments/confirm', requireAuth, async (req: AuthedRequest, res) => {
+    const { paymentId } = req.body;
+    const payment = payments.find(p => p.id === paymentId);
+    if (!payment) return res.status(404).json({ error: 'Payment not found' });
+    payment.status = 'completed';
+    // update booking status to finalizado and paymentStatus to paid
+    const bk = (await getBookings()).find(b => b.id === payment.bookingId);
+    if (bk) {
+      await updateBookingStatus(bk.id, 'finalizado');
+      // record transaction
+      const trans: Transaction = {
+        id: 'trans-' + Date.now(),
+        type: 'entrada',
+        description: `Pagamento - ${bk.userName} (${bk.serviceNames.join(', ')})`,
+        amount: bk.totalPrice,
+        date: bk.date,
+        category: 'Pagamento',
+        specialistId: bk.specialistId,
+        specialistName: bk.specialistName,
+      };
+      await insertTransaction(trans);
+    }
+    res.json({ success: true, payment });
+  });
+
+  // WhatsApp webhook (public endpoint)
+  app.post('/api/whatsapp/webhook', async (req, res) => {
+    const { payload } = req.body || {};
+    if (typeof payload !== 'string') return res.status(400).json({ error: 'Invalid payload' });
+    const [action, id] = payload.split('|');
+    if (!action || !id) return res.status(400).json({ error: 'Malformed payload' });
+    const allBookings = await getBookings();
+    const booking = allBookings.find(b => b.id === id);
+    if (!booking) return res.status(404).json({ error: 'Booking not found' });
+    if (action === 'APPROVE') {
+      await updateBookingStatus(id, 'confirmado');
+    } else if (action === 'REJECT') {
+      await updateBookingStatus(id, 'cancelado');
+    }
+    res.json({ success: true, bookingId: id, action });
+  });
+
   // Serve static assets and Vite server integration
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -418,3 +551,5 @@ async function startServer() {
 }
 
 startServer();
+
+

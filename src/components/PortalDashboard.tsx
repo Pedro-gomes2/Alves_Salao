@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Specialist, Service, Booking, Transaction, AuthUser, WeeklySchedule, WeekDay, DEFAULT_WEEKLY_SCHEDULE, ALL_POSSIBLE_SLOTS } from '../types';
+import { Specialist, Service, Booking, Transaction, AuthUser, WeeklySchedule, WeekDay, DEFAULT_WEEKLY_SCHEDULE, ALL_POSSIBLE_SLOTS, Client } from '../types';
 import BookingDetailsModal from './BookingDetailsModal';
 import { 
   LayoutDashboard, 
@@ -87,6 +87,7 @@ interface PortalDashboardProps {
   services: Service[];
   bookings: Booking[];
   transactions: Transaction[];
+  clients?: Client[];
   onRefreshData: () => void;
   dbStatus?: { configured: boolean; mode: string };
   salonWhatsapp?: string;
@@ -95,13 +96,14 @@ interface PortalDashboardProps {
   authToken: string;
 }
 
-type AdminTab = 'dashboard' | 'agenda' | 'minha_agenda' | 'equipe' | 'financeiro' | 'relatorio_detalhado' | 'nova_operacao' | 'config_especialist' | 'servicos' | 'config_servico';
+type AdminTab = 'dashboard' | 'agenda' | 'minha_agenda' | 'equipe' | 'financeiro' | 'clientes' | 'relatorio_detalhado' | 'nova_operacao' | 'config_especialist' | 'servicos' | 'config_servico';
 
 export default function PortalDashboard({ 
   specialists, 
   services, 
   bookings, 
   transactions, 
+  clients = [],
   onRefreshData,
   dbStatus = { configured: false, mode: 'local_memory' },
   salonWhatsapp = '5511999999999',
@@ -349,7 +351,10 @@ export default function PortalDashboard({
   // Calculations
   const todayBookings = bookings.filter(b => b.date === todayStr);
   const activeRange = periodRange(periodKey, customStart, customEnd, todayStr);
-  const filteredTransactions = filterByDate(transactions, activeRange);
+  let filteredTransactions = filterByDate(transactions, activeRange);
+  if (!isAdmin) {
+    filteredTransactions = filteredTransactions.filter(t => t.specialistId === currentUser.id);
+  }
   const totalRevenue = filteredTransactions.filter(t => t.type === 'entrada').reduce((sum, t) => sum + t.amount, 0);
   const totalExpenses = filteredTransactions.filter(t => t.type === 'saida').reduce((sum, t) => sum + t.amount, 0);
   const netProfit = totalRevenue - totalExpenses;
@@ -833,6 +838,18 @@ export default function PortalDashboard({
                 </button>
 
                 <button
+                  onClick={() => { setActiveTab('clientes'); setIsDrawerOpen(false); }}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl font-sans text-sm font-bold text-left transition-all ${
+                    activeTab === 'clientes'
+                      ? 'bg-brand-primary-light/30 text-brand-primary'
+                      : 'text-brand-tertiary hover:bg-[#faf9f8]'
+                  }`}
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>Clientes</span>
+                </button>
+
+                <button
                   onClick={() => { setActiveTab('relatorio_detalhado'); setIsDrawerOpen(false); }}
                   className={`flex items-center gap-3 px-4 py-3 rounded-xl font-sans text-sm font-bold text-left transition-all ${
                     activeTab === 'relatorio_detalhado'
@@ -913,7 +930,7 @@ export default function PortalDashboard({
               <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 bg-white p-6 rounded-2xl border border-brand-primary-light/35 shadow-sm">
                 <div>
                   <span className="font-sans text-[11px] font-semibold text-brand-primary tracking-widest uppercase">Portal Administrativo</span>
-                  <h2 className="font-display text-3xl md:text-4xl text-brand-primary mt-1">Olá, Admin</h2>
+                  <h2 className="font-display text-3xl md:text-4xl text-brand-primary mt-1">Olá, {currentUser?.name || 'Admin'}</h2>
                   <p className="text-brand-tertiary text-sm mt-0.5">Aqui está o resumo da sua boutique de estética hoje.</p>
                   
                   {/* Database Connection Badge */}
@@ -1256,7 +1273,9 @@ export default function PortalDashboard({
                     {['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00'].map((hour) => {
                       // Filter bookings on agendaDate & matching hour prefix
                       let hourBookings = bookings.filter(b => b.date === agendaDate && b.time.startsWith(hour.slice(0, 2)));
-                      if (selectedSpecialistId !== 'all') {
+                      if (!isAdmin) {
+                        hourBookings = hourBookings.filter(b => b.specialistId === currentUser.id);
+                      } else if (selectedSpecialistId !== 'all') {
                         hourBookings = hourBookings.filter(b => b.specialistId === selectedSpecialistId);
                       }
 
@@ -1344,7 +1363,7 @@ export default function PortalDashboard({
                                           className="p-2 px-4 bg-purple-700 hover:bg-purple-800 text-white rounded-full text-xs font-bold flex items-center gap-1.5 transition-transform active:scale-95 cursor-pointer shadow-md hover:shadow-lg"
                                           title="Finalizar atendimento e enviar dados para o financeiro"
                                         >
-                                          <DollarSign className="w-3.5 h-3.5" /> Finalizar Atendimento (Finanças)
+                                          <DollarSign className="w-3.5 h-3.5" /> Encaminhar ao Financeiro
                                         </button>
                                         <button 
                                           onClick={() => handleUpdateBookingStatus(book.id, 'cancelado')}
@@ -1389,7 +1408,9 @@ export default function PortalDashboard({
                     {getDaysOfWeek(agendaDate).map((dayStr) => {
                       // Filter bookings on dayStr
                       let dayBookings = bookings.filter(b => b.date === dayStr);
-                      if (selectedSpecialistId !== 'all') {
+                      if (!isAdmin) {
+                        dayBookings = dayBookings.filter(b => b.specialistId === currentUser.id);
+                      } else if (selectedSpecialistId !== 'all') {
                         dayBookings = dayBookings.filter(b => b.specialistId === selectedSpecialistId);
                       }
                       
@@ -1551,7 +1572,9 @@ export default function PortalDashboard({
                         
                         // Bookings count on this cell date
                         let cellBookings = bookings.filter(b => b.date === cellDateStr);
-                        if (selectedSpecialistId !== 'all') {
+                        if (!isAdmin) {
+                          cellBookings = cellBookings.filter(b => b.specialistId === currentUser.id);
+                        } else if (selectedSpecialistId !== 'all') {
                           cellBookings = cellBookings.filter(b => b.specialistId === selectedSpecialistId);
                         }
 
@@ -1622,7 +1645,9 @@ export default function PortalDashboard({
                     <div className="flex-1 overflow-y-auto space-y-4">
                       {(() => {
                         let selectedDayBookings = bookings.filter(b => b.date === agendaDate);
-                        if (selectedSpecialistId !== 'all') {
+                        if (!isAdmin) {
+                          selectedDayBookings = selectedDayBookings.filter(b => b.specialistId === currentUser.id);
+                        } else if (selectedSpecialistId !== 'all') {
                           selectedDayBookings = selectedDayBookings.filter(b => b.specialistId === selectedSpecialistId);
                         }
 
@@ -1988,6 +2013,78 @@ export default function PortalDashboard({
               {scheduleDraft && !isScheduleValid(scheduleDraft) && (
                 <p className="text-xs text-rose-600">Há horários inválidos no rascunho. Corrija antes de salvar.</p>
               )}
+            </div>
+          )}
+
+          {/* VIEW X: CLIENTES */}
+          {activeTab === 'clientes' && (
+            <div className="space-y-8">
+              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                <div>
+                  <span className="font-sans text-[11px] font-semibold text-brand-primary tracking-widest uppercase font-bold">Base de Clientes</span>
+                  <h2 className="font-display text-3xl text-brand-dark">Gestão de Clientes</h2>
+                  <p className="text-brand-tertiary text-sm">Visualize e gerencie os clientes cadastrados.</p>
+                </div>
+                
+                <button 
+                  onClick={() => {
+                    const name = prompt('Nome do cliente:');
+                    if (!name) return;
+                    const phone = prompt('Telefone do cliente (Ex: 5511999999999):');
+                    if (!phone) return;
+                    fetch('/api/clients', {
+                      method: 'POST',
+                      headers: authHeaders(),
+                      body: JSON.stringify({ name, phone, professionalId: currentUser.id })
+                    }).then(() => {
+                      onRefreshData();
+                      alert('Cliente cadastrado!');
+                    }).catch(() => alert('Erro ao cadastrar cliente.'));
+                  }}
+                  className="bg-brand-primary text-white hover:bg-brand-primary-light hover:text-brand-primary py-3 px-6 rounded-full font-bold text-xs uppercase tracking-wider shadow-lg flex items-center gap-1.5 transition-transform active:scale-95"
+                >
+                  <UserPlus className="w-4 h-4" /> Adicionar Cliente
+                </button>
+              </div>
+
+              <div className="bg-white border border-[#d6c2c4]/20 rounded-3xl p-6 shadow-sm overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[600px]">
+                  <thead>
+                    <tr className="border-b border-brand-primary-light/40">
+                      <th className="py-4 px-4 font-sans text-xs font-bold text-brand-tertiary uppercase tracking-wider">Nome</th>
+                      <th className="py-4 px-4 font-sans text-xs font-bold text-brand-tertiary uppercase tracking-wider">Telefone</th>
+                      <th className="py-4 px-4 font-sans text-xs font-bold text-brand-tertiary uppercase tracking-wider">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {clients.length === 0 ? (
+                      <tr>
+                        <td colSpan={3} className="py-8 text-center text-sm text-brand-tertiary italic">Nenhum cliente cadastrado.</td>
+                      </tr>
+                    ) : (
+                      clients.map(c => (
+                        <tr key={c.id} className="border-b border-brand-primary-light/20 hover:bg-[#faf9f8]/50 transition-colors">
+                          <td className="py-4 px-4 font-sans font-semibold text-brand-dark">{c.name}</td>
+                          <td className="py-4 px-4 text-brand-tertiary text-sm">{c.phone}</td>
+                          <td className="py-4 px-4">
+                            <button 
+                              onClick={() => {
+                                if (confirm(`Deseja remover o cliente ${c.name}?`)) {
+                                  fetch(`/api/clients/${c.id}`, { method: 'DELETE', headers: authHeaders() })
+                                    .then(() => onRefreshData());
+                                }
+                              }}
+                              className="text-rose-500 hover:text-rose-600 p-2"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 

@@ -82,9 +82,19 @@ export interface Booking {
   status: 'confirmado' | 'pendente' | 'cancelado' | 'finalizado';
   totalPrice: number;
   totalDuration: number;
-  createdAt: string;
+  // new fields
+  paymentStatus?: 'pending' | 'paid';
+  confirmationStatus?: 'aguardandoAdmin' | 'confirmado' | 'rejeitado'; // already exists
 }
 
+export interface Payment {
+  id: string;
+  bookingId: string;
+  amount: number;
+  date: string; // YYYY-MM-DD
+  method: string; // e.g., 'whatsapp'
+  status: 'pending' | 'completed';
+}
 export interface Transaction {
   id: string;
   type: 'entrada' | 'saida';
@@ -95,3 +105,12 @@ export interface Transaction {
   specialistId?: string;
   specialistName?: string;
 }
+
+export interface Client {
+  id: string;
+  professionalId: string;
+  name: string;
+  phone: string;
+  notes?: string;
+}
+
