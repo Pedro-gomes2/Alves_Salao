@@ -1000,23 +1000,25 @@ export default function PortalDashboard({
                   </span>
                 </div>
 
-                {/* Active Specialists */}
-                <div 
-                  onClick={() => setActiveTab('equipe')}
-                  className="bg-brand-primary text-white rounded-2xl p-6 shadow-md flex flex-col justify-between cursor-pointer hover:bg-brand-primary-light hover:text-brand-primary transition-all relative overflow-hidden"
-                >
-                  <div className="absolute right-0 top-0 w-20 h-20 bg-white/10 rounded-full blur-xl pointer-events-none" />
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="bg-white/20 p-2 rounded-xl">
-                      <Users className="w-5 h-5" />
+                {/* Active Specialists — admin only */}
+                {isAdmin && (
+                  <div
+                    onClick={() => setActiveTab('equipe')}
+                    className="bg-brand-primary text-white rounded-2xl p-6 shadow-md flex flex-col justify-between cursor-pointer hover:bg-brand-primary-light hover:text-brand-primary transition-all relative overflow-hidden"
+                  >
+                    <div className="absolute right-0 top-0 w-20 h-20 bg-white/10 rounded-full blur-xl pointer-events-none" />
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="bg-white/20 p-2 rounded-xl">
+                        <Users className="w-5 h-5" />
+                      </div>
+                      <span className="text-xs font-bold font-sans tracking-wide">Equipe</span>
                     </div>
-                    <span className="text-xs font-bold font-sans tracking-wide">Equipe</span>
+                    <span className="text-xs font-bold uppercase tracking-wider opacity-75">Profissionais Ativas</span>
+                    <span className="font-display text-2xl lg:text-3xl font-semibold mt-1">
+                      {specialists.filter(s => s.active).length} Especialistas
+                    </span>
                   </div>
-                  <span className="text-xs font-bold uppercase tracking-wider opacity-75">Profissionais Ativas</span>
-                  <span className="font-display text-2xl lg:text-3xl font-semibold mt-1">
-                    {specialists.filter(s => s.active).length} Especialistas
-                  </span>
-                </div>
+                )}
 
               </div>
 
@@ -1169,19 +1171,21 @@ export default function PortalDashboard({
                     </button>
                   </div>
 
-                  {/* Specialist Filter */}
-                  <div className="relative">
-                    <select 
-                      value={selectedSpecialistId}
-                      onChange={(e) => setSelectedSpecialistId(e.target.value)}
-                      className="bg-white border border-[#d6c2c4]/40 rounded-xl py-2.5 pl-4 pr-10 text-xs font-bold text-brand-tertiary cursor-pointer focus:ring-1 focus:ring-brand-primary focus:outline-none shadow-sm"
-                    >
-                      <option value="all">Filtro: Todos Profissionais</option>
-                      {specialists.map(s => (
-                        <option key={s.id} value={s.id}>{s.name}</option>
-                      ))}
-                    </select>
-                  </div>
+                  {/* Specialist Filter — admin only */}
+                  {isAdmin && (
+                    <div className="relative">
+                      <select
+                        value={selectedSpecialistId}
+                        onChange={(e) => setSelectedSpecialistId(e.target.value)}
+                        className="bg-white border border-[#d6c2c4]/40 rounded-xl py-2.5 pl-4 pr-10 text-xs font-bold text-brand-tertiary cursor-pointer focus:ring-1 focus:ring-brand-primary focus:outline-none shadow-sm"
+                      >
+                        <option value="all">Filtro: Todos Profissionais</option>
+                        {specialists.map(s => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1230,7 +1234,7 @@ export default function PortalDashboard({
                 <div className="flex items-center gap-2 w-full sm:w-auto">
                   {/* Today shortcut button */}
                   <button 
-                    onClick={() => setAgendaDate('2026-05-22')}
+                    onClick={() => setAgendaDate(todayStr)}
                     className="flex-1 sm:flex-none bg-white border border-brand-primary text-brand-primary hover:bg-brand-primary hover:text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all uppercase tracking-wide cursor-pointer text-center"
                   >
                     Voltar para Hoje
