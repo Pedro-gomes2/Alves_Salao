@@ -317,12 +317,18 @@ async function startServer() {
       const oldStatus = booking.status;
       const updated = await updateBookingStatus(id, status);
 
-      // If status changed to finalized, we record an incoming transaction (send to financial sector)
-      if (oldStatus !== 'finalizado' && status === 'finalizado') {
+      // Record an incoming transaction the FIRST time this booking reaches
+      // 'confirmado' or 'finalizado' (whichever happens first). Avoids double
+      // counting if it then progresses confirm → finalize later.
+      const shouldRecord =
+        (oldStatus !== 'confirmado' && oldStatus !== 'finalizado') &&
+        (status === 'confirmado' || status === 'finalizado');
+      if (shouldRecord) {
+        const verb = status === 'finalizado' ? 'Finalizado' : 'Confirmado';
         const trans: Transaction = {
           id: 'trans-' + Date.now(),
           type: 'entrada',
-          description: `Atendimento Finalizado - ${booking.userName} (${booking.serviceNames.join(', ')})`,
+          description: `Atendimento ${verb} - ${booking.userName} (${booking.serviceNames.join(', ')})`,
           amount: booking.totalPrice,
           date: booking.date,
           category: 'Estética',
@@ -331,7 +337,6 @@ async function startServer() {
         };
         await insertTransaction(trans);
 
-        // increment specialist attendance count
         const specialists = await getSpecialists();
         const specIndex = specialists.findIndex(s => s.id === booking.specialistId);
         if (specIndex >= 0) {
