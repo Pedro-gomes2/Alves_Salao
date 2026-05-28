@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(cd \"C:\\\\Users\\\\JP\\\\Desktop\\\\Salao_alves\" && find src -name \"*.ts\" -o -name \"*.tsx\" | head -20)"
+      "Bash(cd \"C:\\\\Users\\\\JP\\\\Desktop\\\\Salao_alves\" && find src -name \"*.ts\" -o -name \"*.tsx\" | head -20)",
+      "Bash(npm run *)"
     ]
   }
 }
