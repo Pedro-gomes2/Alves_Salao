@@ -1,4 +1,10 @@
 {
   "buildCommand": "npm run build",
-  "outputDirectory": "dist"
+  "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/((?!api|assets|_next|static|public).*)",
+      "destination": "/index.html"
+    }
+  ]
 }
