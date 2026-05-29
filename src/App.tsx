@@ -234,14 +234,6 @@ export default function App() {
 
       <footer className="w-full border-t border-brand-primary-light/15 py-8 text-center text-[11px] text-brand-tertiary font-sans opacity-80 space-y-2">
         <p>© 2026 ALVES ESTÉTICA - Santuário de Estética & Bem-estar. Todos os direitos reservados.</p>
-        <p>
-          <button
-            onClick={() => navigate('admin')}
-            className="text-brand-primary hover:underline font-bold uppercase tracking-wider"
-          >
-            Acesso da Equipe →
-          </button>
-        </p>
       </footer>
     </div>
   );
