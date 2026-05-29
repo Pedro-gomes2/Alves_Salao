@@ -413,23 +413,6 @@ export default function PortalDashboard({
     }
   };
 
-  // Confirm service completion (intermediate step)
-  const handleConfirmService = async (id: string) => {
-    try {
-      const response = await fetch(`/api/bookings/${id}/status`, {
-        method: 'PATCH',
-        headers: authHeaders(),
-        body: JSON.stringify({ paymentStatus: 'pending' })
-      });
-      if (response.ok) {
-        onRefreshData();
-        showToast('Serviço confirmado! Aguardando confirmação de pagamento para finalizar.');
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
   const handleConfirmAndSendWhatsapp = async (book: Booking) => {
     // Confirm attendance and mark service as ready for payment in one step
     await handleUpdateBookingStatus(book.id, 'confirmado', 'pending');
@@ -1376,30 +1359,12 @@ export default function PortalDashboard({
                                       </>
                                     )}
 
-                                    {book.status === 'confirmado' && !book.paymentStatus && (
-                                      <>
-                                        <button
-                                          onClick={() => handleConfirmService(book.id)}
-                                          className="p-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-full text-xs font-bold flex items-center gap-1.5 transition-transform active:scale-95 cursor-pointer shadow-sm hover:shadow"
-                                          title="Confirmar que o serviço foi realizado"
-                                        >
-                                          <Check className="w-3.5 h-3.5" /> Confirmar Serviço
-                                        </button>
-                                        <button
-                                          onClick={() => handleUpdateBookingStatus(book.id, 'cancelado')}
-                                          className="p-2 px-3 text-brand-tertiary hover:text-red-600 rounded-full text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
-                                        >
-                                          <X className="w-3.5 h-3.5" /> Cancelar
-                                        </button>
-                                      </>
-                                    )}
-
-                                    {book.status === 'confirmado' && book.paymentStatus === 'pending' && (
+                                    {book.status === 'confirmado' && (
                                       <>
                                         <button
                                           onClick={() => handleFinalizeBooking(book.id)}
-                                          className="p-2 px-4 bg-purple-700 hover:bg-purple-800 text-white rounded-full text-xs font-bold flex items-center gap-1.5 transition-transform active:scale-95 cursor-pointer shadow-md hover:shadow-lg"
-                                          title="Registrar pagamento e encaminhar dados para o financeiro"
+                                          className="p-2 px-4 bg-purple-700 hover:bg-purple-800 text-white rounded-full text-xs font-bold flex items-center gap-1.5 transition-transform active:scale-95 cursor-pointer shadow-md hover:shadow-lg animate-pulse-slow"
+                                          title="Registrar pagamento e enviar dados para o financeiro"
                                         >
                                           <DollarSign className="w-3.5 h-3.5" /> Registrar Pagamento
                                         </button>
@@ -1548,17 +1513,7 @@ export default function PortalDashboard({
                                       </>
                                     )}
 
-                                    {book.status === 'confirmado' && !book.paymentStatus && (
-                                      <button
-                                        onClick={() => handleConfirmService(book.id)}
-                                        className="p-1 px-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold text-[9px] flex items-center gap-0.5 cursor-pointer"
-                                        title="Confirmar Serviço"
-                                      >
-                                        <Check className="w-2.5 h-2.5" /> Serviço
-                                      </button>
-                                    )}
-
-                                    {book.status === 'confirmado' && book.paymentStatus === 'pending' && (
+                                    {book.status === 'confirmado' && (
                                       <button
                                         onClick={() => handleFinalizeBooking(book.id)}
                                         className="p-1 px-1.5 bg-purple-700 hover:bg-purple-800 text-white rounded font-bold text-[9px] flex items-center gap-0.5 cursor-pointer animate-pulse-slow"
@@ -1762,16 +1717,7 @@ export default function PortalDashboard({
                                 </>
                               )}
 
-                              {book.status === 'confirmado' && !book.paymentStatus && (
-                                <button
-                                  onClick={() => handleConfirmService(book.id)}
-                                  className="p-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer"
-                                >
-                                  <Check className="w-3.5 h-3.5" /> Confirmar Serviço
-                                </button>
-                              )}
-
-                              {book.status === 'confirmado' && book.paymentStatus === 'pending' && (
+                              {book.status === 'confirmado' && (
                                 <button
                                   onClick={() => handleFinalizeBooking(book.id)}
                                   className="p-1.5 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer animate-pulse-slow"
