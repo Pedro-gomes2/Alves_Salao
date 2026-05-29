@@ -134,19 +134,6 @@ public/
 
 ---
 
-## 📱 Credenciais de Teste
-
-### Admin
-- **Usuário:** `admin`
-- **Senha:** `alves2026`
-
-### Profissionais (Exemplo)
-- **Usuário:** `juliana`, `lorena`, `kathy`, `laila`, `karol`
-- **Senha:** `alves2026`
-
-⚠️ **Alterar senhas no primeiro login!**
-
----
 
 ## 🗄️ Banco de Dados
 
@@ -199,21 +186,7 @@ Verificar status: `/api/db-status`
 
 ---
 
-## 🐛 Troubleshooting
 
-### "Credenciais inválidas"
-- Verifique se está usando a senha correta (`alves2026` por padrão)
-- Profissionais: usuário deve estar criado no painel admin
-
-### Datas aparecendo erradas
-- Limpe cache do navegador (Ctrl+Shift+Delete)
-- Verifique timezone do servidor
-
-### Banco de dados não conecta
-- Verifique se `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` estão no `.env`
-- Sistema funcionará com memDb, mas dados não persistirão entre restarts
-
----
 
 ## 🤝 Contribuindo
 
@@ -230,12 +203,6 @@ Verificar status: `/api/db-status`
 
 ---
 
-## 📞 Suporte
 
-Para dúvidas ou problemas:
-- 📧 Email: contato@alvesstetica.com
-- 💬 WhatsApp: Entre em contato via portal
 
----
-
-**Desenvolvido com ❤️ para ALVES ESTÉTICA**
+**Desenvolvido  por joao Pedro com ❤️ para ALVES ESTÉTICA**
