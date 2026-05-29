@@ -746,7 +746,12 @@ export default function BookingFlow({
             <div className="flex flex-col">
               <span className="font-sans text-[10px] uppercase font-bold tracking-widest text-[#847375]">Selecionado</span>
               <span className="font-sans font-bold text-base text-brand-dark">
-                {selectedTime ? `${selectedDate} de Maio às ${selectedTime}` : 'Selecione um horário'}
+                {selectedTime ? (() => {
+                  const [year, month, day] = selectedDate.split('-');
+                  const months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+                  const monthName = months[parseInt(month) - 1];
+                  return `${parseInt(day)} de ${monthName} às ${selectedTime}`;
+                })() : 'Selecione um horário'}
               </span>
             </div>
             <button 
@@ -915,7 +920,15 @@ export default function BookingFlow({
               <div>
                 <span className="font-sans text-[9px] uppercase font-bold tracking-widest text-[#847375]">Data e Hora</span>
                 <p className="font-sans font-bold text-brand-dark text-sm">
-                  Segunda, {selectedDate} de Maio de 2026, às {selectedTime}
+                  {(() => {
+                    const [year, month, day] = selectedDate.split('-');
+                    const dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                    const daysOfWeek = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+                    const months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+                    const dayName = daysOfWeek[dateObj.getDay()];
+                    const monthName = months[dateObj.getMonth()];
+                    return `${dayName}, ${parseInt(day)} de ${monthName} de ${year}`;
+                  })()}, às {selectedTime}
                 </p>
               </div>
             </div>

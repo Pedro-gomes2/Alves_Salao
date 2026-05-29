@@ -67,7 +67,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="bg-[#faf9f8] border border-[#d6c2c4]/40 p-4 rounded-xl text-center">
               <p className="text-[11px] font-sans text-brand-tertiary font-medium leading-snug">
-                Acesso da equipe — use o usuário cadastrado pela administração. Se ainda não tem acesso, peça à administradora para criar pela aba <strong>Equipe</strong> do portal.
+                Use suas credenciais para acessar sua conta.
                 <br /><span className="opacity-70">Senha inicial padrão: <code className="bg-brand-primary-light/35 px-1 py-0.5 rounded font-mono">alves2026</code> — troque no primeiro login.</span>
               </p>
             </div>
