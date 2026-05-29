@@ -20,7 +20,14 @@ if (supabaseUrl && supabaseKey) {
 
 // Fallback in-memory se Supabase falhar
 const memDb = {
-  specialists: [{ id: 'spec-1', name: 'Admin', username: 'admin', passwordHash: '$2a$10$N9qo8uLOickgx2ZMRZoMyeiKoHKUjW.3lLQUyKGQn3YjLBT8rEfhC', active: true, roleType: 'admin', attendanceCount: 0, weeklySchedule: null }],
+  specialists: [
+    { id: 'spec-1', name: 'Admin', username: 'admin', passwordHash: '', active: true, roleType: 'admin', attendanceCount: 0, weeklySchedule: null, specialty: 'Administrador' },
+    { id: 'spec-2', name: 'Lorena', username: 'lorena', passwordHash: '', active: true, roleType: 'professional', attendanceCount: 0, weeklySchedule: null, specialty: 'Cabelo' },
+    { id: 'spec-3', name: 'Kathy', username: 'kathy', passwordHash: '', active: true, roleType: 'professional', attendanceCount: 0, weeklySchedule: null, specialty: 'Unhas' },
+    { id: 'spec-4', name: 'Laila', username: 'laila', passwordHash: '', active: true, roleType: 'professional', attendanceCount: 0, weeklySchedule: null, specialty: 'Cabelo' },
+    { id: 'spec-5', name: 'Karol', username: 'karol', passwordHash: '', active: true, roleType: 'professional', attendanceCount: 0, weeklySchedule: null, specialty: 'Unhas' },
+    { id: 'spec-6', name: 'Juliana', username: 'juliana', passwordHash: '', active: true, roleType: 'professional', attendanceCount: 0, weeklySchedule: null, specialty: 'Estética' }
+  ],
   services: [],
   bookings: [],
   transactions: [],

@@ -10,7 +10,11 @@
       "Bash(git push *)",
       "Bash(grep -E \"^\\\\\\\\[\")",
       "Bash(grep \"^\\\\\\\\[\")",
-      "Bash(rm \"C:\\\\Users\\\\JP\\\\Desktop\\\\Salao_alves\\\\vercel.json\" && rm \"C:\\\\Users\\\\JP\\\\Desktop\\\\Salao_alves\\\\api\\\\[...].ts\" 2>&1)"
+      "Bash(rm \"C:\\\\Users\\\\JP\\\\Desktop\\\\Salao_alves\\\\vercel.json\" && rm \"C:\\\\Users\\\\JP\\\\Desktop\\\\Salao_alves\\\\api\\\\[...].ts\" 2>&1)",
+      "Bash(env)",
+      "Bash(curl -s -X POST http://localhost:3000/api/auth/login -H 'Content-Type: application/json' -d '{\"username\":\"admin\",\"password\":\"alves2026\"}')",
+      "Bash(curl -s -X POST http://localhost:3000/api/auth/login -H 'Content-Type: application/json' -d '{\"username\":\"juliana\",\"password\":\"alves2026\"}')",
+      "Bash(curl -s http://localhost:3000/api/specialists)"
     ]
   }
 }
