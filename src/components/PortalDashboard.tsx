@@ -395,21 +395,30 @@ export default function PortalDashboard({
       const payload: any = { status };
       if (paymentStatus !== undefined) payload.paymentStatus = paymentStatus;
 
+      console.log('Updating booking:', { id, status, paymentStatus });
+
       const response = await fetch(`/api/bookings/${id}/status`, {
         method: 'PATCH',
         headers: authHeaders(),
         body: JSON.stringify(payload)
       });
-      if (response.ok) {
-        onRefreshData();
-        let msgStr = `Agendamento atualizado para ${status}!`;
-        if (status === 'confirmado') msgStr = 'Agendamento confirmado com sucesso!';
-        if (status === 'cancelado') msgStr = 'Agendamento cancelado com sucesso!';
-        if (status === 'finalizado') msgStr = 'Atendimento finalizado e dados encaminhados para o setor financeiro!';
-        showToast(msgStr);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('API Error:', response.status, errorData);
+        showToast(`Erro ao atualizar: ${errorData.error || 'Tente novamente'}`);
+        return;
       }
+
+      await onRefreshData();
+      let msgStr = `Agendamento atualizado para ${status}!`;
+      if (status === 'confirmado') msgStr = 'Agendamento confirmado com sucesso!';
+      if (status === 'cancelado') msgStr = 'Agendamento cancelado com sucesso!';
+      if (status === 'finalizado') msgStr = 'Atendimento finalizado e dados encaminhados para o setor financeiro!';
+      showToast(msgStr);
     } catch (err) {
-      console.error(err);
+      console.error('Error updating booking:', err);
+      showToast('Erro ao atualizar agendamento');
     }
   };
 
