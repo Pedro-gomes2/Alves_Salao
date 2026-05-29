@@ -112,6 +112,18 @@ export default function PortalDashboard({
   authToken,
 }: PortalDashboardProps) {
   const isAdmin = currentUser.roleType === 'admin';
+
+  // Log bookings status para debug
+  React.useEffect(() => {
+    const confirmadosComPendingPayment = bookings.filter(b => b.status === 'confirmado' && b.paymentStatus === 'pending');
+    console.log('📊 Bookings status:');
+    console.log('  - Total:', bookings.length);
+    console.log('  - Confirmados com paymentStatus pending:', confirmadosComPendingPayment.length);
+    if (confirmadosComPendingPayment.length > 0) {
+      console.log('  - IDs:', confirmadosComPendingPayment.map(b => b.id));
+    }
+  }, [bookings]);
+
   const authHeaders = (): Record<string, string> => ({
     'Content-Type': 'application/json',
     Authorization: `Bearer ${authToken}`,
@@ -418,7 +430,9 @@ export default function PortalDashboard({
       const data = await response.json();
       console.log('✅ Booking atualizado:', data);
 
-      console.log('🔄 Refrescando dados...');
+      console.log('🔄 Refrescando dados (aguardando 500ms)...');
+      // Aguarda um pouco para garantir que Supabase salvou
+      await new Promise(resolve => setTimeout(resolve, 500));
       await onRefreshData();
       console.log('✅ Dados refrescados');
 

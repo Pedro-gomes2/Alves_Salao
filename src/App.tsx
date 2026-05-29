@@ -115,7 +115,11 @@ export default function App() {
 
       if (specRes.ok) setSpecialists(await specRes.json());
       if (servRes.ok) setServices(await servRes.json());
-      if (bookRes.ok) setBookings(await bookRes.json());
+      if (bookRes.ok) {
+        const bookingsData = await bookRes.json();
+        console.log('📥 Bookings carregados:', bookingsData.length, 'items');
+        setBookings(bookingsData);
+      }
       if (dbRes && dbRes.ok) setDbStatus(await dbRes.json());
       if (transRes && transRes.ok) setTransactions(await transRes.json());
       else setTransactions([]);
