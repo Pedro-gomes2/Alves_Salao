@@ -268,14 +268,22 @@ export default async (req, res) => {
       const bookingId = path.split('/')[3];
       const { status, paymentStatus } = body;
 
+      console.log('🔧 PATCH /api/bookings/', bookingId, '/status - Recebido:', { status, paymentStatus });
+
       const bookings = await getBookings();
       const bookingIdx = bookings.findIndex(b => b.id === bookingId);
-      if (bookingIdx < 0) return res.status(404).json({ error: 'Agendamento não encontrado' });
+      if (bookingIdx < 0) {
+        console.error('❌ Agendamento não encontrado:', bookingId);
+        return res.status(404).json({ error: 'Agendamento não encontrado' });
+      }
 
       const booking = bookings[bookingIdx];
+      console.log('📋 Booking antes:', { status: booking.status, paymentStatus: booking.paymentStatus });
 
       if (status) booking.status = status;
       if (paymentStatus !== undefined) booking.paymentStatus = paymentStatus;
+
+      console.log('📋 Booking depois:', { status: booking.status, paymentStatus: booking.paymentStatus });
 
       // If finalizing, create transaction
       if (booking.status === 'finalizado') {
@@ -318,14 +326,22 @@ export default async (req, res) => {
 
       // Update booking
       if (supabaseClient) {
+        console.log('💾 Salvando em Supabase...');
         try {
           const { data, error } = await supabaseClient.from('bookings').update(booking).eq('id', bookingId).select().single();
-          if (!error && data) return res.json(data);
+          if (error) {
+            console.warn('⚠️ Supabase error:', error);
+          } else {
+            console.log('✅ Supabase success:', data);
+            if (data) return res.json(data);
+          }
         } catch (e) {
-          console.warn('Error updating booking:', e);
+          console.error('❌ Exception updating booking:', e);
         }
       }
+      console.log('💾 Salvando em memDb...');
       bookings[bookingIdx] = booking;
+      console.log('✅ Respondendo com:', booking);
       return res.json(booking);
     }
 

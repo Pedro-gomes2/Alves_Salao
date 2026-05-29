@@ -395,29 +395,40 @@ export default function PortalDashboard({
       const payload: any = { status };
       if (paymentStatus !== undefined) payload.paymentStatus = paymentStatus;
 
-      console.log('Updating booking:', { id, status, paymentStatus });
+      console.log('📤 Enviando:', { id, status, paymentStatus });
 
       const response = await fetch(`/api/bookings/${id}/status`, {
         method: 'PATCH',
-        headers: authHeaders(),
+        headers: {
+          ...authHeaders(),
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify(payload)
       });
 
+      console.log('📥 Resposta HTTP:', response.status, response.statusText);
+
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error('API Error:', response.status, errorData);
-        showToast(`Erro ao atualizar: ${errorData.error || 'Tente novamente'}`);
+        const errorText = await response.text();
+        console.error('❌ API Error:', response.status, errorText);
+        showToast(`Erro: ${response.status} - Tente novamente`);
         return;
       }
 
+      const data = await response.json();
+      console.log('✅ Booking atualizado:', data);
+
+      console.log('🔄 Refrescando dados...');
       await onRefreshData();
+      console.log('✅ Dados refrescados');
+
       let msgStr = `Agendamento atualizado para ${status}!`;
-      if (status === 'confirmado') msgStr = 'Agendamento confirmado com sucesso!';
+      if (status === 'confirmado') msgStr = 'Agendamento confirmado com sucesso! Pronto para registrar pagamento.';
       if (status === 'cancelado') msgStr = 'Agendamento cancelado com sucesso!';
       if (status === 'finalizado') msgStr = 'Atendimento finalizado e dados encaminhados para o setor financeiro!';
       showToast(msgStr);
     } catch (err) {
-      console.error('Error updating booking:', err);
+      console.error('❌ Error updating booking:', err);
       showToast('Erro ao atualizar agendamento');
     }
   };
