@@ -263,6 +263,72 @@ export default async (req, res) => {
       return res.json(await insertBooking(booking));
     }
 
+    if (path.match(/^\/api\/bookings\/[\w-]+\/status$/) && method === 'PATCH') {
+      if (!authUser) return res.status(401).json({ error: 'Não autenticado' });
+      const bookingId = path.split('/')[3];
+      const { status, paymentStatus } = body;
+
+      const bookings = await getBookings();
+      const bookingIdx = bookings.findIndex(b => b.id === bookingId);
+      if (bookingIdx < 0) return res.status(404).json({ error: 'Agendamento não encontrado' });
+
+      const booking = bookings[bookingIdx];
+
+      if (status) booking.status = status;
+      if (paymentStatus !== undefined) booking.paymentStatus = paymentStatus;
+
+      // If finalizing, create transaction
+      if (booking.status === 'finalizado') {
+        const specialist = await getSpecialistByUsername(booking.specialistId) ||
+                          (await getSpecialists()).find(s => s.id === booking.specialistId);
+
+        if (specialist && supabaseClient) {
+          try {
+            await supabaseClient.from('specialists').update({
+              attendanceCount: (specialist.attendanceCount || 0) + 1
+            }).eq('id', booking.specialistId);
+          } catch (e) {
+            console.warn('Error updating specialist:', e);
+          }
+        } else if (specialist) {
+          specialist.attendanceCount = (specialist.attendanceCount || 0) + 1;
+        }
+
+        const transaction = {
+          id: 'trans-' + Date.now(),
+          type: 'entrada',
+          description: `Serviço: ${booking.serviceNames.join(', ')} - ${booking.userName}`,
+          amount: booking.totalPrice,
+          date: new Date().toISOString().split('T')[0],
+          category: 'Serviços',
+          specialistId: booking.specialistId,
+          specialistName: booking.specialistName
+        };
+
+        if (supabaseClient) {
+          try {
+            await supabaseClient.from('transactions').insert(transaction);
+          } catch (e) {
+            console.warn('Error inserting transaction:', e);
+          }
+        } else {
+          memDb.transactions.push(transaction);
+        }
+      }
+
+      // Update booking
+      if (supabaseClient) {
+        try {
+          const { data, error } = await supabaseClient.from('bookings').update(booking).eq('id', bookingId).select().single();
+          if (!error && data) return res.json(data);
+        } catch (e) {
+          console.warn('Error updating booking:', e);
+        }
+      }
+      bookings[bookingIdx] = booking;
+      return res.json(booking);
+    }
+
     if (path === '/api/transactions' && method === 'GET') {
       if (!authUser) return res.status(401).json({ error: 'Não autenticado' });
       const transactions = await getTransactions();

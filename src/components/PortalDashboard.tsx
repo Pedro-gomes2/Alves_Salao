@@ -390,12 +390,15 @@ export default function PortalDashboard({
   const myEstimatedPayout = (myGenerated * myCommissionPct) / 100;
 
   // Change booking status (Confirm / Reject / Cancel)
-  const handleUpdateBookingStatus = async (id: string, status: 'confirmado' | 'cancelado' | 'finalizado') => {
+  const handleUpdateBookingStatus = async (id: string, status: 'confirmado' | 'cancelado' | 'finalizado', paymentStatus?: 'pending' | 'paid') => {
     try {
+      const payload: any = { status };
+      if (paymentStatus !== undefined) payload.paymentStatus = paymentStatus;
+
       const response = await fetch(`/api/bookings/${id}/status`, {
         method: 'PATCH',
         headers: authHeaders(),
-        body: JSON.stringify({ status })
+        body: JSON.stringify(payload)
       });
       if (response.ok) {
         onRefreshData();
@@ -410,9 +413,26 @@ export default function PortalDashboard({
     }
   };
 
+  // Confirm service completion (intermediate step)
+  const handleConfirmService = async (id: string) => {
+    try {
+      const response = await fetch(`/api/bookings/${id}/status`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify({ paymentStatus: 'pending' })
+      });
+      if (response.ok) {
+        onRefreshData();
+        showToast('Serviço confirmado! Aguardando confirmação de pagamento para finalizar.');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleConfirmAndSendWhatsapp = async (book: Booking) => {
     await handleUpdateBookingStatus(book.id, 'confirmado');
-    
+
     // Normalize and clean phone number for WhatsApp URL
     const cleanPhone = book.userWhatsapp.replace(/\D/g, '');
     let formattedPhone = cleanPhone;
@@ -421,7 +441,7 @@ export default function PortalDashboard({
         formattedPhone = '55' + cleanPhone;
       }
     }
-    
+
     const formattedDate = book.date.split('-').reverse().join('/');
     const textMsg = `Olá, ${book.userName}! Passando para confirmar seu agendamento de *${book.serviceNames.join(', ')}* na Alves Estética! 🌸\n\n*Profissional:* ${book.specialistName}\n*Data:* ${formattedDate}\n*Horários:* ${book.time} hs\n*Valor:* R$ ${book.totalPrice.toFixed(2)}\n\nEstamos ansiosas para te receber! Caso precise remarcar, fale conosco.`;
     const waUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(textMsg)}`;
@@ -429,7 +449,7 @@ export default function PortalDashboard({
   };
 
   const handleFinalizeBooking = async (id: string) => {
-    await handleUpdateBookingStatus(id, 'finalizado');
+    await handleUpdateBookingStatus(id, 'finalizado', 'paid');
   };
 
   // Create financial operation
@@ -1355,16 +1375,34 @@ export default function PortalDashboard({
                                       </>
                                     )}
 
-                                    {book.status === 'confirmado' && (
+                                    {book.status === 'confirmado' && !book.paymentStatus && (
                                       <>
-                                        <button 
+                                        <button
+                                          onClick={() => handleConfirmService(book.id)}
+                                          className="p-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-full text-xs font-bold flex items-center gap-1.5 transition-transform active:scale-95 cursor-pointer shadow-sm hover:shadow"
+                                          title="Confirmar que o serviço foi realizado"
+                                        >
+                                          <Check className="w-3.5 h-3.5" /> Confirmar Serviço
+                                        </button>
+                                        <button
+                                          onClick={() => handleUpdateBookingStatus(book.id, 'cancelado')}
+                                          className="p-2 px-3 text-brand-tertiary hover:text-red-600 rounded-full text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                                        >
+                                          <X className="w-3.5 h-3.5" /> Cancelar
+                                        </button>
+                                      </>
+                                    )}
+
+                                    {book.status === 'confirmado' && book.paymentStatus === 'pending' && (
+                                      <>
+                                        <button
                                           onClick={() => handleFinalizeBooking(book.id)}
                                           className="p-2 px-4 bg-purple-700 hover:bg-purple-800 text-white rounded-full text-xs font-bold flex items-center gap-1.5 transition-transform active:scale-95 cursor-pointer shadow-md hover:shadow-lg"
-                                          title="Finalizar atendimento e enviar dados para o financeiro"
+                                          title="Registrar pagamento e encaminhar dados para o financeiro"
                                         >
-                                          <DollarSign className="w-3.5 h-3.5" /> Encaminhar ao Financeiro
+                                          <DollarSign className="w-3.5 h-3.5" /> Registrar Pagamento
                                         </button>
-                                        <button 
+                                        <button
                                           onClick={() => handleUpdateBookingStatus(book.id, 'cancelado')}
                                           className="p-2 px-3 text-brand-tertiary hover:text-red-600 rounded-full text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
                                         >
@@ -1509,13 +1547,23 @@ export default function PortalDashboard({
                                       </>
                                     )}
 
-                                    {book.status === 'confirmado' && (
-                                      <button 
+                                    {book.status === 'confirmado' && !book.paymentStatus && (
+                                      <button
+                                        onClick={() => handleConfirmService(book.id)}
+                                        className="p-1 px-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold text-[9px] flex items-center gap-0.5 cursor-pointer"
+                                        title="Confirmar Serviço"
+                                      >
+                                        <Check className="w-2.5 h-2.5" /> Serviço
+                                      </button>
+                                    )}
+
+                                    {book.status === 'confirmado' && book.paymentStatus === 'pending' && (
+                                      <button
                                         onClick={() => handleFinalizeBooking(book.id)}
                                         className="p-1 px-1.5 bg-purple-700 hover:bg-purple-800 text-white rounded font-bold text-[9px] flex items-center gap-0.5 cursor-pointer animate-pulse-slow"
-                                        title="Finalizar (Enviar p/ Financeiro)"
+                                        title="Registrar Pagamento"
                                       >
-                                        <DollarSign className="w-2.5 h-2.5" /> Finalizar
+                                        <DollarSign className="w-2.5 h-2.5" /> Pgto
                                       </button>
                                     )}
 
@@ -1713,12 +1761,21 @@ export default function PortalDashboard({
                                 </>
                               )}
 
-                              {book.status === 'confirmado' && (
-                                <button 
+                              {book.status === 'confirmado' && !book.paymentStatus && (
+                                <button
+                                  onClick={() => handleConfirmService(book.id)}
+                                  className="p-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                                >
+                                  <Check className="w-3.5 h-3.5" /> Confirmar Serviço
+                                </button>
+                              )}
+
+                              {book.status === 'confirmado' && book.paymentStatus === 'pending' && (
+                                <button
                                   onClick={() => handleFinalizeBooking(book.id)}
                                   className="p-1.5 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer animate-pulse-slow"
                                 >
-                                  <DollarSign className="w-3.5 h-3.5" /> Finalizar Atendimento (Financeiro)
+                                  <DollarSign className="w-3.5 h-3.5" /> Registrar Pagamento
                                 </button>
                               )}
 
