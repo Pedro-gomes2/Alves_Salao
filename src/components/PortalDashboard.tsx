@@ -1379,7 +1379,7 @@ export default function PortalDashboard({
 
                                     {book.status === 'finalizado' && (
                                       <span className="inline-flex items-center gap-1.5 text-xs text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full shadow-sm animate-fade-in">
-                                        <Check className="w-3.5 h-3.5 stroke-[3px]" /> Encaminhado ao Financeiro (R$ {book.totalPrice.toFixed(2)})
+                                        <Check className="w-3.5 h-3.5 stroke-[3px]" /> ✅ Pagamento Registrado (R$ {book.totalPrice.toFixed(2)})
                                       </span>
                                     )}
 
@@ -1727,8 +1727,8 @@ export default function PortalDashboard({
                               )}
 
                               {book.status === 'finalizado' && (
-                                <span className="text-[9px] text-emerald-800 font-bold bg-emerald-50 px-2 py-1 rounded">
-                                  ✓ Enviado Financeiro
+                                <span className="text-[9px] text-emerald-800 font-bold bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
+                                  ✅ Já foi Registrado
                                 </span>
                               )}
                             </div>
