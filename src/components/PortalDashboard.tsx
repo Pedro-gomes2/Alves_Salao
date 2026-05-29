@@ -431,7 +431,8 @@ export default function PortalDashboard({
   };
 
   const handleConfirmAndSendWhatsapp = async (book: Booking) => {
-    await handleUpdateBookingStatus(book.id, 'confirmado');
+    // Confirm attendance and mark service as ready for payment in one step
+    await handleUpdateBookingStatus(book.id, 'confirmado', 'pending');
 
     // Normalize and clean phone number for WhatsApp URL
     const cleanPhone = book.userWhatsapp.replace(/\D/g, '');
